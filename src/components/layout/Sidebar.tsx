@@ -1,50 +1,98 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   AlertTriangle,
   Sparkles,
   Server,
-  TerminalSquare,
   GaugeCircle,
   Settings,
   ChevronLeft,
   ShieldCheck,
   X,
+  Lock,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/contexts/I18nContext";
+import { useAuth, Role } from "@/contexts/AuthContext";
+import { getIncidentsForUser } from "@/data/mockData";
 
 interface NavItem {
-  id: string;
-  label: string;
+  to: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
-  badge?: string | number;
+  badge?: () => string | number | undefined;
+  allow: Role[];
+  adminBadge?: boolean;
 }
 
-const items: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "incidents", label: "Incidents", icon: AlertTriangle, badge: 3 },
-  { id: "ai", label: "AI Insights", icon: Sparkles },
-  { id: "infra", label: "Infrastructure", icon: Server },
-  { id: "chatops", label: "ChatOps Terminal", icon: TerminalSquare, badge: "live" },
-  { id: "sla", label: "SLA & Reports", icon: GaugeCircle },
-  { id: "settings", label: "Settings", icon: Settings },
-];
-
 interface SidebarProps {
-  active: string;
-  onSelect: (id: string) => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
 }
 
-export const Sidebar = ({ active, onSelect, mobileOpen, onMobileClose }: SidebarProps) => {
+export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { t } = useI18n();
+  const { user } = useAuth();
 
-  const handleSelect = (id: string) => {
-    onSelect(id);
+  const openIncidentsCount = user
+    ? getIncidentsForUser(user.assignedServers).filter((i) => i.status !== "resolved").length
+    : 0;
+
+  const items: NavItem[] = [
+    {
+      to: "/dashboard",
+      labelKey: "nav.dashboard",
+      icon: LayoutDashboard,
+      allow: ["admin", "operator", "viewer"],
+    },
+    {
+      to: "/incidents",
+      labelKey: "nav.incidents",
+      icon: AlertTriangle,
+      allow: ["admin", "operator", "viewer"],
+      badge: () => (openIncidentsCount > 0 ? openIncidentsCount : undefined),
+    },
+    {
+      to: "/ai",
+      labelKey: "nav.ai",
+      icon: Sparkles,
+      allow: ["admin", "operator", "viewer"],
+    },
+    {
+      to: "/infrastructure",
+      labelKey: "nav.infra",
+      icon: Server,
+      allow: ["admin", "operator", "viewer"],
+    },
+    {
+      to: "/sla",
+      labelKey: "nav.sla",
+      icon: GaugeCircle,
+      allow: ["admin", "operator", "viewer"],
+    },
+    {
+      to: "/settings",
+      labelKey: "nav.settings",
+      icon: Settings,
+      allow: ["admin", "operator", "viewer"],
+      adminBadge: false,
+    },
+  ];
+
+  const visibleItems = items.filter((it) => !user || it.allow.includes(user.role));
+
+  const handleSelect = (to: string) => {
+    navigate(to);
     onMobileClose();
   };
+
+  const isActiveRoute = (to: string) =>
+    location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
 
   const content = (isMobile: boolean) => (
     <>
@@ -77,13 +125,14 @@ export const Sidebar = ({ active, onSelect, mobileOpen, onMobileClose }: Sidebar
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
-          const isActive = active === item.id;
+          const isActive = isActiveRoute(item.to);
+          const badgeValue = item.badge?.();
           return (
             <button
-              key={item.id}
-              onClick={() => handleSelect(item.id)}
+              key={item.to}
+              onClick={() => handleSelect(item.to)}
               className={cn(
                 "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 "hover:bg-sidebar-accent",
@@ -91,7 +140,7 @@ export const Sidebar = ({ active, onSelect, mobileOpen, onMobileClose }: Sidebar
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground",
               )}
-              title={collapsed && !isMobile ? item.label : undefined}
+              title={collapsed && !isMobile ? t(item.labelKey) : undefined}
             >
               {isActive && (
                 <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
@@ -99,26 +148,21 @@ export const Sidebar = ({ active, onSelect, mobileOpen, onMobileClose }: Sidebar
               <Icon
                 className={cn(
                   "h-[18px] w-[18px] shrink-0 transition-colors",
-                  isActive ? "text-primary" : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
+                  isActive
+                    ? "text-primary"
+                    : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
                 )}
               />
               {(!collapsed || isMobile) && (
                 <>
-                  <span className="flex-1 truncate text-left">{item.label}</span>
-                  {item.badge !== undefined && (
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                        item.badge === "live"
-                          ? "bg-success/15 text-success ring-1 ring-success/30"
-                          : "bg-destructive/15 text-destructive ring-1 ring-destructive/30",
-                      )}
-                    >
-                      {item.badge === "live" && (
-                        <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse-soft rounded-full bg-success" />
-                      )}
-                      {item.badge}
+                  <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
+                  {badgeValue !== undefined && (
+                    <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
+                      {badgeValue}
                     </span>
+                  )}
+                  {item.to === "/settings" && user?.role !== "admin" && (
+                    <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
                   )}
                 </>
               )}
@@ -138,8 +182,12 @@ export const Sidebar = ({ active, onSelect, mobileOpen, onMobileClose }: Sidebar
           <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
           {(!collapsed || isMobile) && (
             <div className="min-w-0 animate-fade-in">
-              <p className="truncate text-xs font-semibold text-foreground">Session Secured</p>
-              <p className="truncate text-[10px] text-muted-foreground">SSO · audit trail on</p>
+              <p className="truncate text-xs font-semibold capitalize text-foreground">
+                {user?.role ?? "—"}
+              </p>
+              <p className="truncate text-[10px] text-muted-foreground">
+                {user?.assignedServers.length ?? 0} {t("common.assignedServers").toLowerCase()}
+              </p>
             </div>
           )}
         </div>
