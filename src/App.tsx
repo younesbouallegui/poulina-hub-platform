@@ -38,7 +38,7 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/" element={<Navigate to="/ai" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/incidents" element={<Incidents />} />
                   <Route path="/ai" element={<AIInsights />} />

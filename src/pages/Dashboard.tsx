@@ -60,28 +60,27 @@ const Dashboard = () => {
       <div className="flex-1 space-y-6 p-4 sm:p-6">
         {/* Welcome / scope */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card lg:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+          <div className="rounded-xl border border-border bg-card p-6 shadow-card lg:col-span-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               {t("dash.welcome")}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-foreground">{user?.name}</h2>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{user?.name}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Badge label={t("common.role")} value={user?.role ?? ""} tone="primary" />
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Badge label={t("common.role")} value={user?.role ?? ""} />
               <Badge
                 label={t("common.assignedServers")}
                 value={String(user?.assignedServers.length ?? 0)}
-                tone="muted"
               />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card p-6 shadow-card">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               {t("dash.yourScope")}
             </p>
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2.5">
               {servers.slice(0, 3).map((s) => (
                 <div key={s.id} className="flex items-center justify-between text-sm">
                   <span className="truncate font-medium text-foreground">{s.name}</span>
@@ -101,32 +100,29 @@ const Dashboard = () => {
             icon={ShieldCheck}
             label={t("dash.servicesHealthy")}
             value={`${healthy}/${servers.length}`}
-            tone="success"
           />
           <KpiCard
             icon={AlertTriangle}
             label={t("dash.openIncidents")}
             value={String(openIncidents)}
-            tone={openIncidents > 0 ? "destructive" : "muted"}
+            emphasize={openIncidents > 0}
           />
           <KpiCard
             icon={TrendingUp}
             label={t("dash.avgUptime")}
             value={`${avgUptime.toFixed(2)}%`}
-            tone="primary"
           />
           <KpiCard
             icon={Server}
             label={t("common.assignedServers")}
             value={String(servers.length)}
-            tone="muted"
           />
         </section>
 
         {/* Charts */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title={t("dash.cpuLoad")} icon={Cpu} data={cpuSeries} color="hsl(var(--primary))" />
-          <ChartCard title={t("dash.memoryLoad")} icon={Activity} data={memSeries} color="hsl(var(--info))" />
+          <ChartCard title={t("dash.cpuLoad")} icon={Cpu} data={cpuSeries} />
+          <ChartCard title={t("dash.memoryLoad")} icon={Activity} data={memSeries} />
         </section>
 
         {/* Servers + Incidents */}
@@ -222,25 +218,10 @@ const Dashboard = () => {
   );
 };
 
-const Badge = ({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "primary" | "muted";
-}) => (
-  <div
-    className={cn(
-      "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs",
-      tone === "primary"
-        ? "border-primary/20 bg-primary/5 text-primary"
-        : "border-border bg-muted text-foreground",
-    )}
-  >
+const Badge = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs">
     <span className="text-muted-foreground">{label}:</span>
-    <span className="font-semibold capitalize">{value}</span>
+    <span className="font-semibold capitalize text-foreground">{value}</span>
   </div>
 );
 
@@ -263,52 +244,48 @@ const KpiCard = ({
   icon: Icon,
   label,
   value,
-  tone,
+  emphasize = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
-  tone: "primary" | "success" | "destructive" | "muted";
-}) => {
-  const toneCls =
-    tone === "success"
-      ? "text-success bg-success/10"
-      : tone === "destructive"
-        ? "text-destructive bg-destructive/10"
-        : tone === "primary"
-          ? "text-primary bg-primary/10"
-          : "text-muted-foreground bg-muted";
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-card transition-all hover-lift">
-      <div className="flex items-center gap-3">
-        <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneCls)}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {label}
-          </p>
-          <p className="font-mono text-xl font-semibold tabular-nums text-foreground">{value}</p>
-        </div>
-      </div>
+  emphasize?: boolean;
+}) => (
+  <div className="group rounded-xl border border-border bg-card p-5 shadow-card transition-all hover-lift">
+    <div className="flex items-start justify-between">
+      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </p>
+      <Icon
+        className={cn(
+          "h-4 w-4",
+          emphasize ? "text-destructive" : "text-muted-foreground/60",
+        )}
+      />
     </div>
-  );
-};
+    <p
+      className={cn(
+        "mt-3 font-mono text-2xl font-semibold tabular-nums tracking-tight",
+        emphasize ? "text-destructive" : "text-foreground",
+      )}
+    >
+      {value}
+    </p>
+  </div>
+);
 
 const ChartCard = ({
   title,
   icon: Icon,
   data,
-  color,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   data: { t: string; value: number }[];
-  color: string;
 }) => (
-  <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-    <div className="mb-3 flex items-center gap-2">
-      <Icon className="h-4 w-4 text-primary" />
+  <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+    <div className="mb-4 flex items-center gap-2">
+      <Icon className="h-4 w-4 text-muted-foreground" />
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
     </div>
     <div className="h-44">
@@ -316,8 +293,8 @@ const ChartCard = ({
         <AreaChart data={data} margin={{ top: 5, right: 8, bottom: 0, left: -20 }}>
           <defs>
             <linearGradient id={`g-${title}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
+              <stop offset="0%" stopColor="hsl(var(--foreground))" stopOpacity={0.18} />
+              <stop offset="100%" stopColor="hsl(var(--foreground))" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
@@ -344,7 +321,13 @@ const ChartCard = ({
               fontSize: 12,
             }}
           />
-          <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#g-${title})`} />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke="hsl(var(--foreground))"
+            strokeWidth={1.5}
+            fill={`url(#g-${title})`}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>

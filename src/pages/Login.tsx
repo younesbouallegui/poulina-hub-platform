@@ -37,7 +37,7 @@ const Login = () => {
     setSubmitting(true);
     try {
       await login(parsed.data.email, parsed.data.password, remember);
-      toast({ title: "Welcome back", description: "Redirecting to your dashboard…" });
+      toast({ title: "Welcome back", description: "Redirecting to AI Insights…" });
       navigate("/", { replace: true });
     } catch {
       toast({ title: "Sign-in failed", description: "Please try again.", variant: "destructive" });
@@ -175,18 +175,6 @@ const Login = () => {
             Protected by enterprise SSO · audit trail enabled
           </div>
         </form>
-
-        {/* Demo accounts (RBAC) */}
-        <div className="mt-4 rounded-xl border border-dashed border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
-          <p className="mb-1.5 font-semibold uppercase tracking-wider text-foreground">
-            Demo accounts (any password)
-          </p>
-          <ul className="space-y-0.5 font-mono">
-            <li>admin@poulina.com · full access</li>
-            <li>operator@poulina.com · acknowledge / close incidents</li>
-            <li>viewer@poulina.com · read-only, limited scope</li>
-          </ul>
-        </div>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           © {new Date().getFullYear()} Poulina Group · ChatOps Platform
