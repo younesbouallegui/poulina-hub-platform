@@ -56,13 +56,21 @@ const sampleResponses: AiResponse[] = [
   },
 ];
 
-export const ChatInterface = () => {
+interface ChatInterfaceProps {
+  /** When provided, this message is sent to the AI automatically on mount. */
+  autoMessage?: string;
+  /** Stable key — when changed, retrigger the auto-send (e.g. eventId). */
+  autoMessageKey?: string;
+}
+
+export const ChatInterface = ({ autoMessage, autoMessageKey }: ChatInterfaceProps = {}) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef<string | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
