@@ -16,6 +16,7 @@ import Infrastructure from "./pages/Infrastructure";
 import SLA from "./pages/SLA";
 import Settings from "./pages/Settings";
 import AIInsights from "./pages/AIInsights";
+import IncidentChat from "./pages/IncidentChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
