@@ -172,7 +172,7 @@ export const ChatInterface = ({ autoMessage, autoMessageKey }: ChatInterfaceProp
               disabled={sending}
             />
             <button
-              onClick={send}
+              onClick={() => send()}
               disabled={!input.trim() || sending}
               className={cn(
                 "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-all",
