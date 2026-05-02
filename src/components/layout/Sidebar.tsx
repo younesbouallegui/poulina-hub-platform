@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   X,
   Lock,
+  BellRing,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,11 @@ interface NavItem {
   badge?: () => string | number | undefined;
   allow: Role[];
   adminBadge?: boolean;
+}
+
+interface NavSection {
+  labelKey: string;
+  items: NavItem[];
 }
 
 interface SidebarProps {
@@ -43,48 +49,74 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     ? getIncidentsForUser(user.assignedServers).filter((i) => i.status !== "resolved").length
     : 0;
 
-  const items: NavItem[] = [
+  const sections: NavSection[] = [
     {
-      to: "/dashboard",
-      labelKey: "nav.dashboard",
-      icon: LayoutDashboard,
-      allow: ["admin", "operator", "viewer"],
+      labelKey: "nav.section.operate",
+      items: [
+        {
+          to: "/dashboard",
+          labelKey: "nav.dashboard",
+          icon: LayoutDashboard,
+          allow: ["admin", "operator", "viewer"],
+        },
+        {
+          to: "/alerts",
+          labelKey: "nav.alerts",
+          icon: BellRing,
+          allow: ["admin", "operator", "viewer"],
+          badge: () => (openIncidentsCount > 0 ? openIncidentsCount : undefined),
+        },
+        {
+          to: "/incidents",
+          labelKey: "nav.incidents",
+          icon: AlertTriangle,
+          allow: ["admin", "operator", "viewer"],
+        },
+        {
+          to: "/ai",
+          labelKey: "nav.ai",
+          icon: Sparkles,
+          allow: ["admin", "operator", "viewer"],
+        },
+      ],
     },
     {
-      to: "/incidents",
-      labelKey: "nav.incidents",
-      icon: AlertTriangle,
-      allow: ["admin", "operator", "viewer"],
-      badge: () => (openIncidentsCount > 0 ? openIncidentsCount : undefined),
+      labelKey: "nav.section.observe",
+      items: [
+        {
+          to: "/infrastructure",
+          labelKey: "nav.infra",
+          icon: Server,
+          allow: ["admin", "operator", "viewer"],
+        },
+        {
+          to: "/sla",
+          labelKey: "nav.sla",
+          icon: GaugeCircle,
+          allow: ["admin", "operator", "viewer"],
+        },
+      ],
     },
     {
-      to: "/ai",
-      labelKey: "nav.ai",
-      icon: Sparkles,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/infrastructure",
-      labelKey: "nav.infra",
-      icon: Server,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/sla",
-      labelKey: "nav.sla",
-      icon: GaugeCircle,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/settings",
-      labelKey: "nav.settings",
-      icon: Settings,
-      allow: ["admin", "operator", "viewer"],
-      adminBadge: false,
+      labelKey: "nav.section.govern",
+      items: [
+        {
+          to: "/settings",
+          labelKey: "nav.settings",
+          icon: Settings,
+          allow: ["admin", "operator", "viewer"],
+          adminBadge: false,
+        },
+      ],
     },
   ];
 
-  const visibleItems = items.filter((it) => !user || it.allow.includes(user.role));
+  const visibleSections = sections
+    .map((s) => ({
+      ...s,
+      items: s.items.filter((it) => !user || it.allow.includes(user.role)),
+    }))
+    .filter((s) => s.items.length > 0);
 
   const handleSelect = (to: string) => {
     navigate(to);
@@ -124,51 +156,62 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = isActiveRoute(item.to);
-          const badgeValue = item.badge?.();
-          return (
-            <button
-              key={item.to}
-              onClick={() => handleSelect(item.to)}
-              className={cn(
-                "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                "hover:bg-sidebar-accent",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground",
-              )}
-              title={collapsed && !isMobile ? t(item.labelKey) : undefined}
-            >
-              {isActive && (
-                <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
-              )}
-              <Icon
-                className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
-                )}
-              />
-              {(!collapsed || isMobile) && (
-                <>
-                  <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
-                  {badgeValue !== undefined && (
-                    <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
-                      {badgeValue}
-                    </span>
+      <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+        {visibleSections.map((section, idx) => (
+          <div key={section.labelKey} className="space-y-1">
+            {(!collapsed || isMobile) ? (
+              <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+                {t(section.labelKey)}
+              </p>
+            ) : (
+              idx > 0 && <div className="mx-2 my-2 h-px bg-sidebar-border/60" />
+            )}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = isActiveRoute(item.to);
+              const badgeValue = item.badge?.();
+              return (
+                <button
+                  key={item.to}
+                  onClick={() => handleSelect(item.to)}
+                  className={cn(
+                    "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    "hover:bg-sidebar-accent",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground",
                   )}
-                  {item.to === "/settings" && user?.role !== "admin" && (
-                    <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
+                  title={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                >
+                  {isActive && (
+                    <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
                   )}
-                </>
-              )}
-            </button>
-          );
-        })}
+                  <Icon
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0 transition-colors",
+                      isActive
+                        ? "text-primary"
+                        : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
+                    )}
+                  />
+                  {(!collapsed || isMobile) && (
+                    <>
+                      <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
+                      {badgeValue !== undefined && (
+                        <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
+                          {badgeValue}
+                        </span>
+                      )}
+                      {item.to === "/settings" && user?.role !== "admin" && (
+                        <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}
