@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   X,
   Lock,
+  LineChart,
+  Bell,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
@@ -39,11 +41,24 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
   const { t } = useI18n();
   const { user } = useAuth();
 
-  const openIncidentsCount = user
+  const openAlertsCount = user
     ? getIncidentsForUser(user.assignedServers).filter((i) => i.status !== "resolved").length
     : 0;
 
   const items: NavItem[] = [
+    {
+      to: "/executive",
+      labelKey: "nav.executive",
+      icon: LineChart,
+      allow: ["admin", "operator", "viewer"],
+    },
+    {
+      to: "/alerts",
+      labelKey: "nav.alerts",
+      icon: Bell,
+      allow: ["admin", "operator", "viewer"],
+      badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined),
+    },
     {
       to: "/dashboard",
       labelKey: "nav.dashboard",
@@ -55,7 +70,6 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       labelKey: "nav.incidents",
       icon: AlertTriangle,
       allow: ["admin", "operator", "viewer"],
-      badge: () => (openIncidentsCount > 0 ? openIncidentsCount : undefined),
     },
     {
       to: "/ai",
