@@ -13,6 +13,11 @@ import {
   Lock,
   LineChart,
   Bell,
+  Boxes,
+  Layers,
+  Users as UsersIcon,
+  Building2,
+  ScrollText,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
@@ -29,6 +34,11 @@ interface NavItem {
   adminBadge?: boolean;
 }
 
+interface NavSection {
+  titleKey: string;
+  items: NavItem[];
+}
+
 interface SidebarProps {
   mobileOpen: boolean;
   onMobileClose: () => void;
@@ -39,66 +49,65 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useI18n();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
 
   const openAlertsCount = user
-    ? getIncidentsForUser(user.assignedServers).filter((i) => i.status !== "resolved").length
+    ? getIncidentsForUser(user.assignedServers ?? []).filter((i) => i.status !== "resolved").length
     : 0;
 
-  const items: NavItem[] = [
+  const sections: NavSection[] = [
     {
-      to: "/executive",
-      labelKey: "nav.executive",
-      icon: LineChart,
-      allow: ["admin", "operator", "viewer"],
+      titleKey: "nav.section.overview",
+      items: [
+        { to: "/executive", labelKey: "nav.executive", icon: LineChart, allow: ["admin", "operator", "viewer", "auditor"] },
+        { to: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, allow: ["admin", "operator", "viewer", "auditor"] },
+        { to: "/ai", labelKey: "nav.ai", icon: Sparkles, allow: ["admin", "operator", "viewer", "auditor"] },
+      ],
     },
     {
-      to: "/alerts",
-      labelKey: "nav.alerts",
-      icon: Bell,
-      allow: ["admin", "operator", "viewer"],
-      badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined),
+      titleKey: "nav.section.operations",
+      items: [
+        {
+          to: "/alerts",
+          labelKey: "nav.alerts",
+          icon: Bell,
+          allow: ["admin", "operator", "viewer", "auditor"],
+          badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined),
+        },
+        { to: "/incidents", labelKey: "nav.incidents", icon: AlertTriangle, allow: ["admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure", labelKey: "nav.infra", icon: Server, allow: ["admin", "operator", "viewer", "auditor"] },
+        { to: "/sla", labelKey: "nav.sla", icon: GaugeCircle, allow: ["admin", "operator", "viewer", "auditor"] },
+      ],
     },
     {
-      to: "/dashboard",
-      labelKey: "nav.dashboard",
-      icon: LayoutDashboard,
-      allow: ["admin", "operator", "viewer"],
+      titleKey: "nav.section.cmdb",
+      items: [
+        { to: "/cmdb/assets", labelKey: "nav.cmdb.assets", icon: Boxes, allow: ["admin", "operator", "viewer", "auditor"] },
+        { to: "/cmdb/services", labelKey: "nav.cmdb.services", icon: Layers, allow: ["admin", "operator", "viewer", "auditor"] },
+      ],
     },
     {
-      to: "/incidents",
-      labelKey: "nav.incidents",
-      icon: AlertTriangle,
-      allow: ["admin", "operator", "viewer"],
+      titleKey: "nav.section.governance",
+      items: [
+        { to: "/governance/users", labelKey: "nav.gov.users", icon: UsersIcon, allow: ["admin"] },
+        { to: "/governance/departments", labelKey: "nav.gov.dept", icon: Building2, allow: ["admin"] },
+        { to: "/governance/audit", labelKey: "nav.gov.audit", icon: ScrollText, allow: ["admin", "auditor"] },
+      ],
     },
     {
-      to: "/ai",
-      labelKey: "nav.ai",
-      icon: Sparkles,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/infrastructure",
-      labelKey: "nav.infra",
-      icon: Server,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/sla",
-      labelKey: "nav.sla",
-      icon: GaugeCircle,
-      allow: ["admin", "operator", "viewer"],
-    },
-    {
-      to: "/settings",
-      labelKey: "nav.settings",
-      icon: Settings,
-      allow: ["admin", "operator", "viewer"],
-      adminBadge: false,
+      titleKey: "nav.section.platform",
+      items: [
+        { to: "/settings", labelKey: "nav.settings", icon: Settings, allow: ["admin", "operator", "viewer", "auditor"] },
+      ],
     },
   ];
 
-  const visibleItems = items.filter((it) => !user || it.allow.includes(user.role));
+  const visibleSections = sections
+    .map((s) => ({
+      ...s,
+      items: s.items.filter((it) => !user || it.allow.some((r) => user.roles?.includes(r) ?? user.role === r)),
+    }))
+    .filter((s) => s.items.length > 0);
 
   const handleSelect = (to: string) => {
     navigate(to);
@@ -122,7 +131,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
               Poulina ChatOps
             </p>
             <p className="truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              AI Operations
+              Operations Hub
             </p>
           </div>
         )}
@@ -138,51 +147,63 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = isActiveRoute(item.to);
-          const badgeValue = item.badge?.();
-          return (
-            <button
-              key={item.to}
-              onClick={() => handleSelect(item.to)}
-              className={cn(
-                "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                "hover:bg-sidebar-accent",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground",
-              )}
-              title={collapsed && !isMobile ? t(item.labelKey) : undefined}
-            >
-              {isActive && (
-                <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
-              )}
-              <Icon
-                className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors",
-                  isActive
-                    ? "text-primary"
-                    : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
-                )}
-              />
-              {(!collapsed || isMobile) && (
-                <>
-                  <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
-                  {badgeValue !== undefined && (
-                    <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
-                      {badgeValue}
-                    </span>
-                  )}
-                  {item.to === "/settings" && user?.role !== "admin" && (
-                    <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
-                  )}
-                </>
-              )}
-            </button>
-          );
-        })}
+      <nav className="flex-1 space-y-3 overflow-y-auto p-3">
+        {visibleSections.map((section) => (
+          <div key={section.titleKey}>
+            {(!collapsed || isMobile) && (
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t(section.titleKey)}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = isActiveRoute(item.to);
+                const badgeValue = item.badge?.();
+                const adminOnly = item.allow.length === 1 && item.allow[0] === "admin";
+                return (
+                  <button
+                    key={item.to}
+                    onClick={() => handleSelect(item.to)}
+                    className={cn(
+                      "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                      "hover:bg-sidebar-accent",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground",
+                    )}
+                    title={collapsed && !isMobile ? t(item.labelKey) : undefined}
+                  >
+                    {isActive && (
+                      <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
+                    )}
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 transition-colors",
+                        isActive
+                          ? "text-primary"
+                          : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
+                      )}
+                    />
+                    {(!collapsed || isMobile) && (
+                      <>
+                        <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
+                        {badgeValue !== undefined && (
+                          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
+                            {badgeValue}
+                          </span>
+                        )}
+                        {adminOnly && !hasRole("admin") && (
+                          <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}
@@ -200,7 +221,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
                 {user?.role ?? "—"}
               </p>
               <p className="truncate text-[10px] text-muted-foreground">
-                {user?.assignedServers.length ?? 0} {t("common.assignedServers").toLowerCase()}
+                {user?.roles?.length ?? 0} role{(user?.roles?.length ?? 0) === 1 ? "" : "s"} · audited
               </p>
             </div>
           )}
@@ -221,7 +242,6 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside
         className={cn(
           "relative z-20 hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out md:flex",
@@ -231,7 +251,6 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
         {content(false)}
       </aside>
 
-      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div

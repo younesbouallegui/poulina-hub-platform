@@ -19,6 +19,14 @@ import AIInsights from "./pages/AIInsights";
 import IncidentChat from "./pages/IncidentChat";
 import Executive from "./pages/Executive";
 import Alerts from "./pages/Alerts";
+import Executive from "./pages/Executive";
+import Alerts from "./pages/Alerts";
+import Assets from "./pages/cmdb/Assets";
+import AssetDetail from "./pages/cmdb/AssetDetail";
+import Services from "./pages/cmdb/Services";
+import GovernanceUsers from "./pages/governance/Users";
+import GovernanceDepartments from "./pages/governance/Departments";
+import GovernanceAuditLog from "./pages/governance/AuditLog";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,10 +58,37 @@ const App = () => (
                   <Route path="/s/:eventId" element={<IncidentChat />} />
                   <Route path="/infrastructure" element={<Infrastructure />} />
                   <Route path="/sla" element={<SLA />} />
+                  <Route path="/cmdb/assets" element={<Assets />} />
+                  <Route path="/cmdb/assets/:id" element={<AssetDetail />} />
+                  <Route path="/cmdb/services" element={<Services />} />
+                  <Route
+                    path="/governance/users"
+                    element={
+                      <RoleGuard allow={["admin"]}>
+                        <GovernanceUsers />
+                      </RoleGuard>
+                    }
+                  />
+                  <Route
+                    path="/governance/departments"
+                    element={
+                      <RoleGuard allow={["admin"]}>
+                        <GovernanceDepartments />
+                      </RoleGuard>
+                    }
+                  />
+                  <Route
+                    path="/governance/audit"
+                    element={
+                      <RoleGuard allow={["admin", "auditor"]}>
+                        <GovernanceAuditLog />
+                      </RoleGuard>
+                    }
+                  />
                   <Route
                     path="/settings"
                     element={
-                      <RoleGuard allow={["admin", "operator", "viewer"]}>
+                      <RoleGuard allow={["admin", "operator", "viewer", "auditor"]}>
                         <Settings />
                       </RoleGuard>
                     }
