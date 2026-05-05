@@ -16,7 +16,8 @@ export const RoleGuard = ({ allow, children, inline = false }: RoleGuardProps) =
   const { t } = useI18n();
 
   if (!user) return <Navigate to="/login" replace />;
-  if (!allow.includes(user.role)) {
+  const granted = user.roles?.some((r) => allow.includes(r)) ?? allow.includes(user.role);
+  if (!granted) {
     if (inline) {
       return (
         <div className="m-6 flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground">

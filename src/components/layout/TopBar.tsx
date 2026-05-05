@@ -49,10 +49,11 @@ export const TopBar = ({ onMenuClick }: TopBarProps) => {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setMenuOpen(false);
-    logout();
+    await logout();
     toast({ title: "Signed out", description: "You have been logged out securely." });
+    navigate("/login", { replace: true });
   };
 
   const handleNotifications = () => {
