@@ -25,6 +25,7 @@ import Services from "./pages/cmdb/Services";
 import GovernanceUsers from "./pages/governance/Users";
 import GovernanceDepartments from "./pages/governance/Departments";
 import GovernanceAuditLog from "./pages/governance/AuditLog";
+import IntegrationCenter from "./pages/integrations/IntegrationCenter";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -80,6 +81,22 @@ const App = () => (
                     element={
                       <RoleGuard allow={["admin", "auditor"]}>
                         <GovernanceAuditLog />
+                      </RoleGuard>
+                    }
+                  />
+                  <Route
+                    path="/integrations"
+                    element={
+                      <RoleGuard allow={["super_admin", "admin", "auditor"]}>
+                        <IntegrationCenter />
+                      </RoleGuard>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <RoleGuard allow={["admin", "operator", "viewer", "auditor"]}>
+                        <Settings />
                       </RoleGuard>
                     }
                   />
