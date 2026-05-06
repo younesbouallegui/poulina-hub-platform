@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import type { Session, User as SbUser } from "@supabase/supabase-js";
 
-export type Role = "admin" | "operator" | "viewer" | "auditor";
+export type Role = "super_admin" | "admin" | "operator" | "viewer" | "auditor";
 
 export interface User {
   id: string;
