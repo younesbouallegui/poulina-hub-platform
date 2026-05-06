@@ -14,6 +14,7 @@ const en: Dict = {
   "nav.infra": "Infrastructure",
   "nav.sla": "SLA & Reports",
   "nav.settings": "Settings",
+  "nav.integrations": "Integration Center",
   "nav.adminOnly": "Admin only",
   "nav.section.overview": "Overview",
   "nav.section.operations": "Operations",
