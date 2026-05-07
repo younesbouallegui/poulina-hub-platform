@@ -110,7 +110,7 @@ const Login = () => {
                 <input
                   id="password"
                   type={showPwd ? "text" : "password"}
-                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
