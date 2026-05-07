@@ -105,10 +105,10 @@ const Login = () => {
       <main className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-card shadow-elevated ring-1 ring-border">
-            <img src={logo} alt="Poulina ChatOps logo" className="h-9 w-9 object-contain" />
+            <img src={logo} alt="Poulina AI Hub logo" className="h-9 w-9 object-contain" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Poulina ChatOps</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">Enterprise Operations Hub</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Poulina AI Hub</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">Corporate Operational OS · Enterprise SSO</p>
         </div>
 
         <form onSubmit={onSubmit} className="glass-strong rounded-2xl p-6 sm:p-8" noValidate>
@@ -257,7 +257,7 @@ const Login = () => {
         </form>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
-          © {new Date().getFullYear()} Poulina Group · ChatOps Platform
+          © {new Date().getFullYear()} Poulina Group · AI Hub Platform
         </p>
       </main>
     </div>
