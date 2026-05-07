@@ -130,10 +130,10 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
         {(!collapsed || isMobile) && (
           <div className="min-w-0 flex-1 animate-fade-in">
             <p className="truncate text-sm font-semibold tracking-tight text-sidebar-accent-foreground">
-              Poulina ChatOps
+              Poulina AI Hub
             </p>
             <p className="truncate text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Operations Hub
+              Corporate Operational OS
             </p>
           </div>
         )}
