@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -10,80 +10,42 @@ const schema = z.object({
   email: z.string().trim().email("Please enter a valid email").max(255),
   password: z.string().min(6, "Password must be at least 6 characters").max(128),
 });
-const signupSchema = schema.extend({
-  fullName: z.string().trim().min(2, "Please enter your full name").max(120),
-});
-
-type Mode = "signin" | "signup";
 
 const Login = () => {
-  const { isAuthenticated, login, signup, loginWithGoogle, resetPassword } = useAuth();
+  const { isAuthenticated, login, resetPassword } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (mode === "signin") {
-      const parsed = schema.safeParse({ email, password });
-      if (!parsed.success) {
-        toast({ title: "Invalid input", description: parsed.error.issues[0].message, variant: "destructive" });
-        return;
-      }
-      setSubmitting(true);
-      try {
-        await login(parsed.data.email, parsed.data.password, remember);
-        toast({ title: "Welcome back", description: "Redirecting…" });
-        navigate("/", { replace: true });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Please try again.";
-        toast({ title: "Sign-in failed", description: msg, variant: "destructive" });
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      const parsed = signupSchema.safeParse({ email, password, fullName });
-      if (!parsed.success) {
-        toast({ title: "Invalid input", description: parsed.error.issues[0].message, variant: "destructive" });
-        return;
-      }
-      setSubmitting(true);
-      try {
-        await signup(parsed.data.email, parsed.data.password, parsed.data.fullName);
-        toast({ title: "Account created", description: "You can now sign in." });
-        setMode("signin");
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Please try again.";
-        toast({ title: "Sign-up failed", description: msg, variant: "destructive" });
-      } finally {
-        setSubmitting(false);
-      }
+    const parsed = schema.safeParse({ email, password });
+    if (!parsed.success) {
+      toast({ title: "Invalid input", description: parsed.error.issues[0].message, variant: "destructive" });
+      return;
     }
-  };
-
-  const onGoogle = async () => {
-    setGoogleLoading(true);
+    setSubmitting(true);
     try {
-      await loginWithGoogle();
+      await login(parsed.data.email, parsed.data.password, remember);
+      toast({ title: "Welcome back", description: "Redirecting…" });
+      navigate("/", { replace: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Google sign-in failed.";
-      toast({ title: "Google sign-in failed", description: msg, variant: "destructive" });
-      setGoogleLoading(false);
+      const msg = err instanceof Error ? err.message : "Please try again.";
+      toast({ title: "Sign-in failed", description: msg, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const onForgot = async () => {
     if (!email) {
-      toast({ title: "Enter your email first", description: "We'll send a reset link there.", variant: "destructive" });
+      toast({ title: "Enter your email first", description: "Your administrator will receive a reset request.", variant: "destructive" });
       return;
     }
     try {
