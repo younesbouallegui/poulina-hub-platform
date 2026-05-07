@@ -124,7 +124,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
         <div className="relative">
-          <img src={logo} alt="Poulina ChatOps logo" className="h-9 w-9 rounded-md object-contain" />
+          <img src={logo} alt="Poulina AI Hub logo" className="h-9 w-9 rounded-md object-contain" />
           <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-sidebar" />
         </div>
         {(!collapsed || isMobile) && (
