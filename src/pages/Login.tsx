@@ -114,42 +114,14 @@ const Login = () => {
         <form onSubmit={onSubmit} className="glass-strong rounded-2xl p-6 sm:p-8" noValidate>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">
-              {mode === "signin" ? "Sign in to your account" : "Create an account"}
+              Sign in to your workspace
             </h2>
-            <button
-              type="button"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-              className="text-xs font-medium text-primary transition-colors hover:text-primary-glow hover:underline"
-            >
-              {mode === "signin" ? "Create one" : "Sign in"}
-            </button>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "signin"
-              ? "Use your enterprise credentials to continue."
-              : "Sign up with your work email."}
+            Access is admin-controlled. Contact your administrator if you don't have an account.
           </p>
 
           <div className="mt-6 space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label htmlFor="fullName" className="mb-1.5 block text-xs font-medium text-foreground">
-                  Full name
-                </label>
-                <div className="relative">
-                  <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Jane Doe"
-                    className="h-11 w-full rounded-lg border border-input bg-background px-3 pl-9 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
-                    required
-                    maxLength={120}
-                  />
-                </div>
-              </div>
-            )}
 
             <div>
               <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-foreground">Email</label>
