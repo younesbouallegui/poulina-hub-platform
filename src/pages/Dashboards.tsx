@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Responsive, WidthProvider, type Layout } from "react-grid-layout";
+import GridLayout, { WidthProvider, type Layout } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useNavigate, useParams } from "react-router-dom";
@@ -17,7 +17,7 @@ import { PanelRenderer } from "@/components/dashboards/PanelRenderer";
 import { STARTER_DASHBOARDS } from "@/data/monitoringMock";
 import type { DashboardCategory, DashboardPanel, MonitoringDashboard } from "@/types/monitoring";
 
-const ResponsiveGrid = WidthProvider(Responsive);
+const ResponsiveGrid = WidthProvider(GridLayout);
 const STORAGE_KEY = "poulina.dashboards.v1";
 
 const CATEGORIES: { id: DashboardCategory | "all"; label: string; icon: typeof LayoutGrid }[] = [
@@ -287,7 +287,7 @@ const DashboardEditor = ({ dashboard, mode, onSave, onExit, onDuplicate, onDelet
             isResizable={editing}
             draggableHandle=".panel-drag"
             margin={[8, 8]}
-            layout={layouts}
+            layout={layout}
             onLayoutChange={onLayoutChange}
           >
             {local.panels.map((p) => (
