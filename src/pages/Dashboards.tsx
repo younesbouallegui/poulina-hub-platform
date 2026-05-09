@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import GridLayout, { WidthProvider, type Layout } from "react-grid-layout";
+import { Responsive, WidthProvider } from "react-grid-layout";
+type LayoutItem = { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number };
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useNavigate, useParams } from "react-router-dom";
@@ -17,7 +18,7 @@ import { PanelRenderer } from "@/components/dashboards/PanelRenderer";
 import { STARTER_DASHBOARDS } from "@/data/monitoringMock";
 import type { DashboardCategory, DashboardPanel, MonitoringDashboard } from "@/types/monitoring";
 
-const ResponsiveGrid = WidthProvider(GridLayout);
+const ResponsiveGrid = WidthProvider(Responsive);
 const STORAGE_KEY = "poulina.dashboards.v1";
 
 const CATEGORIES: { id: DashboardCategory | "all"; label: string; icon: typeof LayoutGrid }[] = [
@@ -185,11 +186,11 @@ const DashboardEditor = ({ dashboard, mode, onSave, onExit, onDuplicate, onDelet
   const editing = mode === "builder";
   const wallboard = mode === "wallboard";
 
-  const layouts: Layout[] = local.panels.map((p) => ({
+  const layout: LayoutItem[] = local.panels.map((p) => ({
     i: p.id, x: p.x, y: p.y, w: p.w, h: p.h, minW: 3, minH: 3,
   }));
 
-  const onLayoutChange = (l: Layout[]) => {
+  const onLayoutChange = (l: LayoutItem[]) => {
     setLocal((d) => ({
       ...d,
       panels: d.panels.map((p) => {
