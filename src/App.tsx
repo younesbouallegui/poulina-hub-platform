@@ -10,14 +10,12 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleGuard } from "@/components/RoleGuard";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
 import Incidents from "./pages/Incidents";
 import Infrastructure from "./pages/Infrastructure";
 import SLA from "./pages/SLA";
 import Settings from "./pages/Settings";
 import AIInsights from "./pages/AIInsights";
 import IncidentChat from "./pages/IncidentChat";
-import Executive from "./pages/Executive";
 import Alerts from "./pages/Alerts";
 import Assets from "./pages/cmdb/Assets";
 import AssetDetail from "./pages/cmdb/AssetDetail";
@@ -50,11 +48,13 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/" element={<Navigate to="/executive" replace />} />
-                  <Route path="/executive" element={<Executive />} />
+                  <Route path="/" element={<Navigate to="/dashboards" replace />} />
+                  <Route path="/executive" element={<Navigate to="/dashboards" replace />} />
+                  <Route path="/dashboard" element={<Navigate to="/dashboards" replace />} />
                   <Route path="/alerts" element={<Alerts />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/dashboards" element={<Dashboards />} />
+                  <Route path="/dashboards/:mode/:id" element={<Dashboards />} />
+                  <Route path="/dashboards/templates" element={<Dashboards />} />
                   <Route
                     path="/terminal"
                     element={
