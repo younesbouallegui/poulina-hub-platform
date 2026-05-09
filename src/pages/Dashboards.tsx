@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Responsive, WidthProvider } from "react-grid-layout";
-type LayoutItem = { i: string; x: number; y: number; w: number; h: number; minW?: number; minH?: number };
+import { Responsive, WidthProvider, type Layout } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useNavigate, useParams } from "react-router-dom";
@@ -186,11 +185,11 @@ const DashboardEditor = ({ dashboard, mode, onSave, onExit, onDuplicate, onDelet
   const editing = mode === "builder";
   const wallboard = mode === "wallboard";
 
-  const layout: LayoutItem[] = local.panels.map((p) => ({
+  const layout: Layout[] = local.panels.map((p) => ({
     i: p.id, x: p.x, y: p.y, w: p.w, h: p.h, minW: 3, minH: 3,
   }));
 
-  const onLayoutChange = (l: LayoutItem[]) => {
+  const onLayoutChange = (l: Layout[]) => {
     setLocal((d) => ({
       ...d,
       panels: d.panels.map((p) => {
