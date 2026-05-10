@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,6 +31,7 @@ import type {
   MetricKind,
   PanelConfig,
   PanelScope,
+  PanelThreshold,
   ScopeKind,
   VizKind,
 } from "@/types/monitoring";
@@ -68,8 +70,8 @@ export const PanelBuilder = ({ open, onClose, onSave }: PanelBuilderProps) => {
 
   const scopeOptions = useMemo(() => {
     const q = search.toLowerCase();
-    const filter = <T extends { id?: string; name?: string }>(arr: T[], idKey: "id" | "name" = "id") =>
-      arr.filter((it: any) => (it.name ?? it.id).toLowerCase().includes(q));
+    const filter = <T extends { id?: string; name?: string }>(arr: T[]) =>
+      arr.filter((it) => ((it.name ?? it.id) ?? "").toLowerCase().includes(q));
     switch (scope.kind) {
       case "host": return HOSTS.filter((h) => h.name.toLowerCase().includes(q)).map((h) => ({ id: h.id, label: h.name, sub: h.fqdn ?? "" }));
       case "host_group": return filter(HOST_GROUPS).map((g) => ({ id: g.id, label: g.name, sub: g.department ?? "" }));
@@ -114,11 +116,19 @@ export const PanelBuilder = ({ open, onClose, onSave }: PanelBuilderProps) => {
     close();
   };
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm animate-fade-in">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-elevated">
+  if (!open) return null;
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-stretch justify-end bg-foreground/50 backdrop-blur-sm animate-fade-in">
+      <div className="flex h-full w-full max-w-[min(1100px,100vw)] flex-col overflow-hidden border-l border-border bg-card shadow-elevated">
         {/* header */}
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-6 py-4">
           <div>
@@ -288,7 +298,7 @@ export const PanelBuilder = ({ open, onClose, onSave }: PanelBuilderProps) => {
                         setConfig((c) => ({ ...c, thresholds: c.thresholds.map((th, j) => j === i ? { ...th, value: v } : th) }));
                       }} className="w-24" />
                       <select value={t.color} onChange={(e) => {
-                        const color = e.target.value as any;
+                        const color = e.target.value as PanelThreshold["color"];
                         setConfig((c) => ({ ...c, thresholds: c.thresholds.map((th, j) => j === i ? { ...th, color } : th) }));
                       }} className="h-9 rounded-md border border-input bg-background px-2 text-xs">
                         <option value="ok">ok</option><option value="info">info</option>
@@ -339,6 +349,7 @@ export const PanelBuilder = ({ open, onClose, onSave }: PanelBuilderProps) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };

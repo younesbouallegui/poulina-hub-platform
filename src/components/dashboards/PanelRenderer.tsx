@@ -41,7 +41,7 @@ interface Props {
 }
 
 export const PanelRenderer = ({ panel }: Props) => {
-  const data = useMemo(() => series(48, 50, 25), [panel.id]);
+  const data = useMemo(() => series(48, 50, 25), []);
   const kind: VizKind = panel.viz;
   const thresholds = panel.config.thresholds;
 

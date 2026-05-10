@@ -24,7 +24,42 @@ interface ZabbixRpcOpts {
   params?: unknown;
 }
 
-async function zabbixRpc({ url, token, method, params }: ZabbixRpcOpts) {
+interface ZabbixHost {
+  hostid: string;
+  host: string;
+  name?: string;
+  status?: string;
+  available?: string | number;
+  interfaces?: Array<{ ip?: string }>;
+  tags?: Array<{ tag: string; value: string }>;
+}
+
+interface ZabbixHostGroup {
+  groupid: string;
+  name: string;
+}
+
+interface ZabbixTrigger {
+  triggerid: string;
+  hosts?: Array<{ hostid: string }>;
+}
+
+interface ZabbixProblem {
+  eventid: string;
+  objectid: string;
+  severity: string;
+  acknowledged?: string;
+  name?: string;
+  opdata?: string;
+  clock: string;
+}
+
+interface HostRow {
+  id: string;
+  external_id: string;
+}
+
+async function zabbixRpc<T = unknown>({ url, token, method, params }: ZabbixRpcOpts): Promise<T> {
   const endpoint = url.replace(/\/+$/, "") + "/api_jsonrpc.php";
   // Zabbix 7.2+ rejects "auth" in body — use Bearer header only.
   // apiinfo.version must NOT include auth at all.
@@ -102,10 +137,33 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     if (action === "test") {
+      // Multi-step real validation: reachability → version → token (host.get) → data sample
       const start = Date.now();
-      const version = await zabbixRpc({ url, token, method: "apiinfo.version" });
-      const latency = Date.now() - start;
-      return json({ ok: true, version, latency_ms: latency });
+      const checks: Record<string, { ok: boolean; detail?: string }> = {};
+      let version = "unknown";
+      let derivedStatus: "connected" | "authentication_failed" | "api_unreachable" | "no_data" = "api_unreachable";
+      try {
+        version = await zabbixRpc<string>({ url, token, method: "apiinfo.version" });
+        checks.reachable = { ok: true, detail: `v${version}` };
+      } catch (e) {
+        checks.reachable = { ok: false, detail: e instanceof Error ? e.message : String(e) };
+        return json({ ok: false, status: "api_unreachable", checks, version, latency_ms: Date.now() - start }, 200);
+      }
+      try {
+        const probe = await zabbixRpc<ZabbixHost[]>({
+          url, token, method: "host.get",
+          params: { output: ["hostid"], limit: 1 },
+        });
+        checks.auth = { ok: true };
+        checks.hosts = { ok: Array.isArray(probe) && probe.length > 0, detail: `${probe?.length ?? 0} sampled` };
+        derivedStatus = checks.hosts.ok ? "connected" : "no_data";
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        checks.auth = { ok: false, detail: msg };
+        derivedStatus = /auth|token|permission|not authori/i.test(msg) ? "authentication_failed" : "api_unreachable";
+      }
+      const latency_ms = Date.now() - start;
+      return json({ ok: derivedStatus === "connected", status: derivedStatus, checks, version, latency_ms });
     }
 
     if (action === "sync") {
@@ -118,101 +176,142 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
+      type GranularStatus =
+        | "connected" | "partial" | "no_data"
+        | "sync_failed" | "authentication_failed" | "api_unreachable";
+      const toDbStatus = (s: GranularStatus): "connected" | "degraded" | "error" => {
+        if (s === "connected") return "connected";
+        if (s === "partial" || s === "no_data") return "degraded";
+        return "error";
+      };
+
+      const finalize = async (
+        status: GranularStatus,
+        msg: string,
+        counts: { groups: number; hosts: number; alerts: number },
+        healthScore: number,
+        result: "ok" | "error" | "partial",
+      ) => {
+        const duration = Date.now() - t0;
+        const dbStatus = toDbStatus(status);
+        const annotated = `[${status}] ${msg}`;
+        await admin.from("monitoring_sync_logs").update({
+          finished_at: new Date().toISOString(),
+          result,
+          duration_ms: duration,
+          records_ingested: counts.groups + counts.hosts + counts.alerts,
+          message: annotated,
+        }).eq("id", log!.id);
+        await admin.from("monitoring_providers").update({
+          status: dbStatus,
+          last_sync_at: new Date().toISOString(),
+          last_error: status === "connected" ? null : annotated,
+          health_score: healthScore,
+        }).eq("id", providerId);
+        await admin.from("provider_health").insert({
+          provider_id: providerId,
+          health_score: healthScore,
+          latency_ms: duration,
+          status: dbStatus,
+          message: annotated,
+        });
+        return duration;
+      };
+
       try {
         // 1. host groups
-        const groups = await zabbixRpc({
-          url,
-          token,
-          method: "hostgroup.get",
-          params: { output: ["groupid", "name"] },
-        });
-        if (Array.isArray(groups) && groups.length) {
-          await admin.from("monitoring_host_groups").upsert(
-            groups.map((g: { groupid: string; name: string }) => ({
+        let groups: ZabbixHostGroup[] = [];
+        try {
+          groups = await zabbixRpc<ZabbixHostGroup[]>({
+            url, token, method: "hostgroup.get",
+            params: { output: ["groupid", "name"] },
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const status = /auth|token|permission/i.test(msg) ? "authentication_failed" : "api_unreachable";
+          const duration = await finalize(status, msg, { groups: 0, hosts: 0, alerts: 0 }, 0, "error");
+          return json({ ok: false, status, error: msg, duration_ms: duration }, 502);
+        }
+        if (groups.length) {
+          const { error: gErr } = await admin.from("monitoring_host_groups").upsert(
+            groups.map((g) => ({
               provider_id: providerId,
               external_id: g.groupid,
               name: g.name,
             })),
             { onConflict: "provider_id,external_id" },
           );
+          if (gErr) {
+            const duration = await finalize("sync_failed", `host_groups upsert: ${gErr.message}`, { groups: 0, hosts: 0, alerts: 0 }, 20, "error");
+            return json({ ok: false, status: "sync_failed", error: gErr.message, duration_ms: duration }, 500);
+          }
         }
 
         // 2. hosts
-        const hosts = await zabbixRpc({
-          url,
-          token,
-          method: "host.get",
+        const hosts = await zabbixRpc<ZabbixHost[]>({
+          url, token, method: "host.get",
           params: {
             output: ["hostid", "host", "name", "status", "available"],
             selectInterfaces: ["ip"],
             selectTags: "extend",
           },
         });
-        if (Array.isArray(hosts) && hosts.length) {
-          await admin.from("monitoring_hosts").upsert(
-            hosts.map((h: any) => ({
-              provider_id: providerId,
-              external_id: h.hostid,
-              name: h.name ?? h.host,
-              hostname: h.host,
-              ip_address: h.interfaces?.[0]?.ip ?? null,
-              available: h.available === "1" || h.available === 1,
-              status: h.status === "0" ? "enabled" : "disabled",
-              tags: h.tags ?? [],
-              last_seen: new Date().toISOString(),
-              raw: h,
-            })),
-            { onConflict: "provider_id,external_id" },
-          );
+        if (!Array.isArray(hosts) || hosts.length === 0) {
+          const duration = await finalize("no_data", "host.get returned no hosts", { groups: groups.length, hosts: 0, alerts: 0 }, 40, "partial");
+          return json({ ok: false, status: "no_data", groups: groups.length, hosts: 0, alerts: 0, duration_ms: duration }, 200);
+        }
+        const { error: hErr } = await admin.from("monitoring_hosts").upsert(
+          hosts.map((h) => ({
+            provider_id: providerId,
+            external_id: h.hostid,
+            name: h.name ?? h.host,
+            hostname: h.host,
+            ip_address: h.interfaces?.[0]?.ip ?? null,
+            available: h.available === "1" || h.available === 1,
+            status: h.status === "0" ? "enabled" : "disabled",
+            tags: h.tags ?? [],
+            last_seen: new Date().toISOString(),
+            raw: h,
+          })),
+          { onConflict: "provider_id,external_id" },
+        );
+        if (hErr) {
+          const duration = await finalize("sync_failed", `hosts upsert: ${hErr.message}`, { groups: groups.length, hosts: 0, alerts: 0 }, 30, "error");
+          return json({ ok: false, status: "sync_failed", error: hErr.message, duration_ms: duration }, 500);
         }
 
         // 3. active problems
-        const problems = await zabbixRpc({
-          url,
-          token,
-          method: "problem.get",
-          params: {
-            output: "extend",
-            recent: false,
-            sortfield: ["eventid"],
-            sortorder: "DESC",
-            limit: 500,
-          },
+        const problems = await zabbixRpc<ZabbixProblem[]>({
+          url, token, method: "problem.get",
+          params: { output: "extend", recent: false, sortfield: ["eventid"], sortorder: "DESC", limit: 500 },
         });
 
         let alertCount = 0;
         if (Array.isArray(problems) && problems.length) {
-          // build host map
           const { data: hostRows } = await admin
             .from("monitoring_hosts")
             .select("id, external_id")
             .eq("provider_id", providerId);
           const hostMap = new Map<string, string>(
-            (hostRows ?? []).map((h: any) => [h.external_id, h.id]),
+            ((hostRows ?? []) as HostRow[]).map((h) => [h.external_id, h.id]),
           );
 
-          // need triggers to map to host
-          const triggerIds = problems.map((p: any) => p.objectid).filter(Boolean);
-          let triggerHostMap = new Map<string, string>();
+          const triggerIds = problems.map((p) => p.objectid).filter(Boolean);
+          const triggerHostMap = new Map<string, string>();
           if (triggerIds.length) {
-            const triggers = await zabbixRpc({
-              url,
-              token,
-              method: "trigger.get",
-              params: {
-                triggerids: triggerIds,
-                selectHosts: ["hostid"],
-                output: ["triggerid"],
-              },
+            const triggers = await zabbixRpc<ZabbixTrigger[]>({
+              url, token, method: "trigger.get",
+              params: { triggerids: triggerIds, selectHosts: ["hostid"], output: ["triggerid"] },
             });
             if (Array.isArray(triggers)) {
               for (const t of triggers) {
-                triggerHostMap.set(t.triggerid, t.hosts?.[0]?.hostid);
+                const hid = t.hosts?.[0]?.hostid;
+                if (hid) triggerHostMap.set(t.triggerid, hid);
               }
             }
           }
 
-          const rows = problems.map((p: any) => {
+          const rows = problems.map((p) => {
             const zHost = triggerHostMap.get(p.objectid);
             return {
               provider_id: providerId,
@@ -226,46 +325,25 @@ Deno.serve(async (req) => {
               raw: p,
             };
           });
-          await admin
+          const { error: aErr } = await admin
             .from("monitoring_alerts")
             .upsert(rows, { onConflict: "provider_id,external_id" });
+          if (aErr) {
+            const duration = await finalize("partial", `alerts upsert: ${aErr.message}`, { groups: groups.length, hosts: hosts.length, alerts: 0 }, 60, "partial");
+            return json({ ok: false, status: "partial", error: aErr.message, duration_ms: duration }, 200);
+          }
           alertCount = rows.length;
         }
 
-        const duration = Date.now() - t0;
-        await admin
-          .from("monitoring_sync_logs")
-          .update({
-            finished_at: new Date().toISOString(),
-            result: "ok",
-            duration_ms: duration,
-            records_ingested: (hosts?.length ?? 0) + alertCount + (groups?.length ?? 0),
-            message: `Synced ${groups?.length ?? 0} groups, ${hosts?.length ?? 0} hosts, ${alertCount} alerts`,
-          })
-          .eq("id", log!.id);
-
-        await admin
-          .from("monitoring_providers")
-          .update({
-            status: "connected",
-            last_sync_at: new Date().toISOString(),
-            last_error: null,
-            health_score: 100,
-          })
-          .eq("id", providerId);
-
-        await admin.from("provider_health").insert({
-          provider_id: providerId,
-          health_score: 100,
-          latency_ms: duration,
-          status: "connected",
-          message: "Sync ok",
-        });
+        const finalStatus = "connected";
+        const msg = `Synced ${groups.length} groups, ${hosts.length} hosts, ${alertCount} alerts`;
+        const duration = await finalize(finalStatus, msg, { groups: groups.length, hosts: hosts.length, alerts: alertCount }, 100, "ok");
 
         return json({
           ok: true,
-          groups: groups?.length ?? 0,
-          hosts: hosts?.length ?? 0,
+          status: finalStatus,
+          groups: groups.length,
+          hosts: hosts.length,
           alerts: alertCount,
           duration_ms: duration,
         });

@@ -34,11 +34,17 @@ const loadDashboards = (): MonitoringDashboard[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch {
+    /* ignore */
+  }
   return STARTER_DASHBOARDS;
 };
 const saveDashboards = (d: MonitoringDashboard[]) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+  } catch {
+    /* ignore */
+  }
 };
 
 const Dashboards = () => {
@@ -66,7 +72,7 @@ const Dashboards = () => {
     return (
       <DashboardEditor
         dashboard={dash}
-        mode={mode as any}
+        mode={mode as "view" | "builder" | "wallboard"}
         onSave={(d) => setDashboards((arr) => arr.map((x) => x.id === d.id ? d : x))}
         onExit={() => navigate("/dashboards")}
         onDuplicate={(d) => {
@@ -227,7 +233,13 @@ const DashboardEditor = ({ dashboard, mode, onSave, onExit, onDuplicate, onDelet
   const importJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { try { setLocal(JSON.parse(r.result as string)); } catch {} };
+    r.onload = () => {
+      try {
+        setLocal(JSON.parse(r.result as string));
+      } catch {
+        /* ignore invalid file */
+      }
+    };
     r.readAsText(f);
   };
 
