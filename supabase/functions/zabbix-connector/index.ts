@@ -176,33 +176,44 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
+      type GranularStatus =
+        | "connected" | "partial" | "no_data"
+        | "sync_failed" | "authentication_failed" | "api_unreachable";
+      const toDbStatus = (s: GranularStatus): "connected" | "degraded" | "error" => {
+        if (s === "connected") return "connected";
+        if (s === "partial" || s === "no_data") return "degraded";
+        return "error";
+      };
+
       const finalize = async (
-        status: "connected" | "partial" | "no_data" | "sync_failed" | "authentication_failed" | "api_unreachable",
+        status: GranularStatus,
         msg: string,
         counts: { groups: number; hosts: number; alerts: number },
         healthScore: number,
         result: "ok" | "error" | "partial",
       ) => {
         const duration = Date.now() - t0;
+        const dbStatus = toDbStatus(status);
+        const annotated = `[${status}] ${msg}`;
         await admin.from("monitoring_sync_logs").update({
           finished_at: new Date().toISOString(),
           result,
           duration_ms: duration,
           records_ingested: counts.groups + counts.hosts + counts.alerts,
-          message: msg,
+          message: annotated,
         }).eq("id", log!.id);
         await admin.from("monitoring_providers").update({
-          status,
+          status: dbStatus,
           last_sync_at: new Date().toISOString(),
-          last_error: result === "ok" ? null : msg,
+          last_error: status === "connected" ? null : annotated,
           health_score: healthScore,
         }).eq("id", providerId);
         await admin.from("provider_health").insert({
           provider_id: providerId,
           health_score: healthScore,
           latency_ms: duration,
-          status,
-          message: msg,
+          status: dbStatus,
+          message: annotated,
         });
         return duration;
       };
