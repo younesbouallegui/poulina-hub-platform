@@ -148,8 +148,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
+const FALLBACK_AUTH: AuthContextValue = {
+  user: null,
+  session: null,
+  isAuthenticated: false,
+  loading: true,
+  login: async () => {
+    throw new Error("Auth not ready");
+  },
+  signup: async () => {
+    throw new Error("Auth not ready");
+  },
+  loginWithGoogle: async () => {
+    throw new Error("Auth not ready");
+  },
+  resetPassword: async () => {
+    throw new Error("Auth not ready");
+  },
+  logout: async () => {},
+  hasRole: () => false,
+};
+
+export const useAuth = (): AuthContextValue => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) {
+    if (typeof window !== "undefined") {
+      console.warn("useAuth() called outside AuthProvider — using fallback");
+    }
+    return FALLBACK_AUTH;
+  }
   return ctx;
 };
