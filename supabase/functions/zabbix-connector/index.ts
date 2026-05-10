@@ -120,10 +120,15 @@ Deno.serve(async (req) => {
     if (!caller.ok) return json({ error: "Unauthorized" }, 401);
 
     const isAdmin = caller.roles.includes("super_admin") || caller.roles.includes("admin");
-    if (!isAdmin) return json({ error: "Forbidden — admin only" }, 403);
 
-    const { action, providerId } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    const { action, providerId, method, params } = body;
     if (!action) return json({ error: "Missing action" }, 400);
+
+    // Only `test`, `sync`, `call` require admin. Read-only `query` is open to any auth user.
+    if (action !== "query" && !isAdmin) {
+      return json({ error: "Forbidden — admin only" }, 403);
+    }
 
     const url = Deno.env.get("ZABBIX_URL");
     const token = Deno.env.get("ZABBIX_API_TOKEN");
