@@ -1,71 +1,75 @@
-This is a large, multi-track rebuild. I'll execute it in clearly scoped phases so each piece lands at production quality instead of partially shipping all of it. Please confirm the order/scope before I start coding.
+# Real Zabbix Integration — Phased Rollout Plan
 
-## Phase 1 — Branding sweep (Poulina AI Hub)
-- Replace `index.html` `<title>`, meta description, OG/Twitter tags, theme-color → "Poulina AI Hub"
-- Replace `/favicon.ico` and `/public/placeholder.svg` references; generate a Poulina logo asset (SVG) and use it for:
-  - favicon (multiple sizes via link tags)
-  - sidebar logo (`Sidebar.tsx`)
-  - login screen (`pages/Login.tsx`)
-  - top bar (if logo present)
-- Add `public/manifest.webmanifest` with name "Poulina AI Hub", short_name, icons
-- Search the codebase for "lovable", "Lovable", "lov-" strings in user-visible text and replace
-- README header rebrand
+You're asking for a full enterprise rebuild (ServiceNow + Datadog + Grafana + Zabbix fusion). That's genuinely 2–3 weeks of focused work — not a single turn. Trying to do it all at once will produce broken half-features across every page. Here's a realistic phased plan that delivers working real-data modules incrementally.
 
-## Phase 2 — Dashboard architecture consolidation
-- Remove `pages/Dashboard.tsx` and `pages/Executive.tsx` as standalone routes
-- Keep ONE module: `/dashboards` with nested routes:
-  - `/dashboards` — Home (list + recents + favorites)
-  - `/dashboards/builder/:id?` — Grafana-style builder
-  - `/dashboards/templates` — Template gallery
-  - `/dashboards/view/:id` — Read-only viewer
-  - `/dashboards/wallboard/:id` — Fullscreen NOC wallboard
-  - Built-in categories (filters, not separate routes): Executive, NOC, Department, Personal, Team
-- Update `Sidebar.tsx`: remove "Dashboard" + "Executive" entries, single "Dashboards" entry
-- Update default redirect from `/` to `/dashboards`
-- Migrate any unique widgets from old Dashboard/Executive into template presets
+## What already exists
 
-## Phase 3 — Grafana-class panel builder
-- New panel-add wizard with 4 steps (modal/drawer):
-  1. **Scope**: Host / Host Group / Department / Asset / Business Service / Provider (searchable picker)
-  2. **Metric**: CPU, RAM, Disk, Network, Packet Loss, Ping, Availability, Uptime, Error Rate, Temperature, Triggers, Alerts, SLA, Capacity
-  3. **Visualization**: Line, Area, Stacked, Bar, Pie, Donut, Gauge, Heatmap, SLA Meter, Status Card, Table, Topology, Alert Stream, Timeline
-  4. **Configure**: Time range, thresholds, severity colors, refresh interval, scope filters, multi-host compare, forecast toggle
-- Freeform grid (`react-grid-layout`): drag, resize, snap, duplicate, clone, save-as-template, edit query, collapse/expand
-- Premium chart styling using Recharts with custom theme: threshold bands, severity colors from design tokens, dense gridlines, proper axes, legends
-- Per-panel state persisted (Cloud-backed once tables exist; localStorage fallback meanwhile)
+- `supabase/functions/zabbix-connector` — secure edge function with token server-side, supports `test`, `sync`, `call` actions
+- Zabbix 7.2+ Bearer auth handled correctly
+- Tables for `monitoring_hosts`, `monitoring_host_groups`, `monitoring_problems`
 
-## Phase 4 — Monitoring data model (Lovable Cloud)
-Tables (with RLS):
-- `monitoring_providers` (zabbix, prometheus, datadog, etc.)
-- `monitoring_host_groups`
-- `monitoring_hosts` (FK group, FK provider, department, tags)
-- `monitoring_metrics` (FK host, type, unit, last_value, ts)
-- `monitoring_alerts` (FK host/metric, severity, status, ts)
-- `monitoring_dashboards` (owner, scope, category, layout JSON)
-- `dashboard_panels` (FK dashboard, type, title, grid pos, config JSON)
-- `panel_queries` (FK panel, scope, metric, filters, agg, range)
-- `monitoring_sync_logs` (provider, status, ts, payload)
-- Seed sample data so visuals are not empty
+## What's missing (the gap)
 
-## Phase 5 — GitHub Actions CI/CD
-- `.github/workflows/deploy.yml` with jobs:
-  - install → lint → typecheck → test → build → upload artifact → deploy stage (placeholder)
-- Secret placeholders: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, deploy tokens
-- README "Deployment" section with setup steps
+- Token + URL secrets not yet set in Lovable Cloud
+- Frontend pages (Alerts, Incidents, Infrastructure, SLA, Dashboards, Assets, Services, Executive, Maps, Users) all read from `mockData.ts` / `monitoringMock.ts`
+- No bidirectional user sync (platform user ↔ Zabbix user)
+- No real-time auto-refresh layer
+- No graph/history/item drill-down using real Zabbix item IDs
+- No SLA service tree from `service.get`
+- No host inventory → CMDB mapping
+- No geo map from inventory location fields
+
+## Phase 1 — Foundation (this turn)
+
+1. **Store secrets server-side**: prompt to add `ZABBIX_URL` and `ZABBIX_API_TOKEN` to Lovable Cloud
+2. **Extend connector** with read-only RPCs the frontend needs:
+   - `hosts` (host.get + interfaces + inventory + groups + tags)
+   - `problems` (problem.get + trigger.get joined)
+   - `events` (event.get with acknowledgment)
+   - `items` (item.get for a host)
+   - `history` (history.get for charting)
+   - `services` (service.get for SLA)
+   - `sla` (sla.get + sla.getsli)
+3. **Add typed React Query client** `src/lib/zabbix.ts` that calls the edge function
+4. **Wire Alerts page** to real `problem.get` data with auto-refresh (30s)
+5. **Wire Infrastructure page** to real `host.get` with availability + interfaces
+
+## Phase 2 — Core operational modules
+
+- Incidents page → `event.get` history + acknowledgment actions
+- Dashboard / Executive → real aggregated counts from problems + hosts
+- Asset Registry (CMDB) → host.get with inventory fields
+- SLA & Reports → service.get + sla.get
+- Real graphs in dashboard panels using `history.get` + recharts
+
+## Phase 3 — Maps + advanced
+
+- Geo world map placing hosts by inventory `location_lat`/`location_lon`
+- Zabbix native maps via `map.get` + iframe or SVG render
+- NOC wall mode (full-screen rotating dashboards)
+
+## Phase 4 — User governance (bidirectional)
+
+- `user.create/update/delete` + `usergroup.get/update` from platform Users page
+- Mirror Zabbix roles into local `user_roles` table
+- Host-group ACL enforcement
+- Audit log for every Zabbix write
+
+## Phase 5 — SSO
+
+- SAML/OIDC via Supabase Auth + Zabbix SAML config alignment
+- LDAP/Azure AD documented setup
 
 ## Technical notes
-- Stack stays as-is (React + Vite + React Router + shadcn). Adds: `react-grid-layout`, optional `@tanstack/react-table` if not present.
-- Charts continue using Recharts; styling upgrade only.
-- All colors via design tokens in `src/styles.css` (severity scale: ok/info/warn/error/critical).
-- Lovable Cloud is already enabled (Supabase client present) — I'll add migrations.
 
-## Estimated scope
-This is roughly 40–60 file changes plus DB migrations. Recommended order: **Phase 1 → 2 → 3 → 4 → 5**, shipping each phase as a working state.
+- All Zabbix calls go through the edge function — token never touches the browser
+- React Query for caching + auto-refresh (`refetchInterval: 30000`)
+- Rate limiting via in-memory token bucket per user in the edge function
+- Audit logging into a new `zabbix_audit_log` table for every write action
+- Graceful fallback UI ("Zabbix unreachable — last known data 2m ago") instead of blank states
 
-## Question before I start
-Do you want me to:
-- **(A) Execute all 5 phases now in one go** (long single response, higher risk of incomplete bits), or
-- **(B) Ship phase-by-phase** so you can validate each (recommended), or
-- **(C) Start with Phase 1 + 2 (branding + dashboard merge) right now**, then continue?
+## What I'll ship in this turn (Phase 1 only)
 
-Reply A / B / C and I'll proceed.
+A working foundation: secrets prompt, extended connector with `hosts` + `problems` + `events` actions, React Query hook, and the **Alerts** + **Infrastructure** pages reading live Zabbix data with auto-refresh. Everything else stays on mock data until subsequent turns — clearly marked so you know what's real vs pending.
+
+Approve this plan and I'll start by requesting the secrets and shipping Phase 1.
