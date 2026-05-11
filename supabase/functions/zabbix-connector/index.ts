@@ -17,6 +17,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CONNECTOR_VERSION = "2026-05-11-query-router-v1";
 
 interface ZabbixRpcOpts {
   url: string;
@@ -183,7 +184,7 @@ async function handleQuery(
       params: input.params ?? {},
     });
     logEvent("zabbix.query.success", { userId: caller.userId, method, duration_ms: Date.now() - started });
-    return json({ ok: true, action: "query", method, result });
+    return json({ ok: true, action: "query", method, connectorVersion: CONNECTOR_VERSION, result });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     const kind = rpcErrorKind(detail);
@@ -260,7 +261,7 @@ Deno.serve(async (req) => {
         checks.reachable = { ok: true, detail: `v${version}` };
       } catch (e) {
         checks.reachable = { ok: false, detail: e instanceof Error ? e.message : String(e) };
-        return json({ ok: false, status: "api_unreachable", checks, version, latency_ms: Date.now() - start }, 200);
+        return json({ ok: false, status: "api_unreachable", checks, version, connectorVersion: CONNECTOR_VERSION, latency_ms: Date.now() - start }, 200);
       }
       try {
         const probe = await zabbixRpc<ZabbixHost[]>({
@@ -276,7 +277,7 @@ Deno.serve(async (req) => {
         derivedStatus = /auth|token|permission|not authori/i.test(msg) ? "authentication_failed" : "api_unreachable";
       }
       const latency_ms = Date.now() - start;
-      return json({ ok: derivedStatus === "connected", status: derivedStatus, checks, version, latency_ms });
+      return json({ ok: derivedStatus === "connected", status: derivedStatus, checks, version, connectorVersion: CONNECTOR_VERSION, latency_ms });
     }
 
     if (action === "sync") {
