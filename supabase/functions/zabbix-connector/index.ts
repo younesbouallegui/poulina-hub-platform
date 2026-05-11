@@ -68,6 +68,7 @@ interface CallerContext {
 }
 
 const QUERY_METHODS = new Set([
+  "apiinfo.version",
   "host.get",
   "hostgroup.get",
   "problem.get",
