@@ -66,18 +66,6 @@ interface CallerContext {
   roles: string[];
 }
 
-class ConnectorError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status = 500,
-    public detail?: string,
-  ) {
-    super(message);
-    this.name = "ConnectorError";
-  }
-}
-
 const QUERY_METHODS = new Set([
   "host.get",
   "hostgroup.get",
@@ -172,15 +160,17 @@ async function handleQuery(
   credentials: { url: string; token: string },
 ) {
   if (!caller?.userId) {
-    throw new ConnectorError("unauthorized", "Unauthorized", 401);
+    return json({ ok: false, code: "unauthorized", error: "Unauthorized" }, 401);
   }
 
   const method = typeof input.method === "string" ? input.method.trim() : "";
   if (!method) {
-    throw new ConnectorError("invalid_method", "method required", 400);
+    logEvent("zabbix.query.rejected", { userId: caller.userId, code: "invalid_method" });
+    return json({ ok: false, code: "invalid_method", error: "Invalid method", detail: "method required" }, 400);
   }
   if (!QUERY_METHODS.has(method)) {
-    throw new ConnectorError("permission_denied", `Method '${method}' is not allowed via query`, 403);
+    logEvent("zabbix.query.rejected", { userId: caller.userId, method, code: "permission_denied" });
+    return json({ ok: false, code: "permission_denied", error: "Permission denied", detail: `Method '${method}' is not allowed via query` }, 403);
   }
 
   const started = Date.now();
