@@ -34,6 +34,31 @@ export interface ZProblem {
   hostName?: string;
 }
 
+type MonitoringHostRow = {
+  id: string;
+  external_id: string;
+  name: string;
+  hostname: string | null;
+  ip_address: string | null;
+  available: boolean | null;
+  status: string | null;
+  tags: unknown;
+  raw: unknown;
+};
+
+type MonitoringAlertRow = {
+  id: string;
+  external_id: string;
+  host_id: string | null;
+  severity: string;
+  status: string;
+  title: string;
+  description: string | null;
+  triggered_at: string;
+  raw: unknown;
+  monitoring_hosts?: { external_id: string; name: string; hostname: string | null } | null;
+};
+
 const SEVERITY_NAMES: Record<string, ZSeverity> = {
   "0": "not_classified",
   "1": "info",
@@ -82,6 +107,55 @@ export async function zabbixQuery<T = unknown>(args: QueryArgs): Promise<T> {
   if (error) throw new Error(error.message ?? "Zabbix request failed");
   if (!data?.ok) throw new Error(data?.error ?? "Zabbix returned an error");
   return data.result as T;
+}
+
+async function syncedHosts(): Promise<ZHost[]> {
+  const { data, error } = await supabase
+    .from("monitoring_hosts")
+    .select("id, external_id, name, hostname, ip_address, available, status, tags, raw")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as MonitoringHostRow[]).map((h) => {
+    const raw = (h.raw && typeof h.raw === "object" ? h.raw : {}) as Partial<ZHost>;
+    return {
+      hostid: h.external_id,
+      host: h.hostname ?? raw.host ?? h.name,
+      name: h.name,
+      status: h.status === "disabled" ? "1" : "0",
+      available: h.available === true ? "1" : h.available === false ? "2" : raw.available ?? "0",
+      interfaces: raw.interfaces ?? [{ ip: h.ip_address ?? undefined }],
+      inventory: raw.inventory ?? {},
+      groups: raw.groups ?? [],
+      tags: Array.isArray(h.tags) ? h.tags as ZHost["tags"] : raw.tags ?? [],
+    };
+  });
+}
+
+async function syncedProblems(): Promise<ZProblem[]> {
+  const { data, error } = await supabase
+    .from("monitoring_alerts")
+    .select("id, external_id, host_id, severity, status, title, description, triggered_at, raw, monitoring_hosts(external_id, name, hostname)")
+    .in("status", ["open", "acknowledged", "assigned", "escalated"])
+    .order("triggered_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return ((data ?? []) as MonitoringAlertRow[]).map((a) => {
+    const raw = (a.raw && typeof a.raw === "object" ? a.raw : {}) as Partial<ZProblem>;
+    const host = a.monitoring_hosts;
+    const clock = raw.clock ?? String(Math.floor(new Date(a.triggered_at).getTime() / 1000));
+    return {
+      ...raw,
+      eventid: a.external_id,
+      objectid: raw.objectid ?? a.id,
+      name: a.title,
+      severity: raw.severity ?? severityNumber(a.severity),
+      acknowledged: a.status === "acknowledged" ? "1" : "0",
+      clock,
+      opdata: a.description ?? raw.opdata,
+      hosts: host ? [{ hostid: host.external_id, name: host.name, host: host.hostname ?? host.name }] : raw.hosts ?? [],
+      hostName: host?.name ?? raw.hostName ?? "—",
+    };
+  });
 }
 
 // ---------- Hooks ----------
