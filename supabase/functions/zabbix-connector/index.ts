@@ -17,7 +17,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CONNECTOR_VERSION = "2026-05-11-query-router-v1";
+const CONNECTOR_VERSION = "2026-05-12-phase2-v2";
 
 interface ZabbixRpcOpts {
   url: string;
@@ -70,16 +70,36 @@ interface CallerContext {
 const QUERY_METHODS = new Set([
   "apiinfo.version",
   "host.get",
+  "hostinterface.get",
   "hostgroup.get",
   "problem.get",
   "trigger.get",
   "item.get",
   "history.get",
+  "trend.get",
   "event.get",
   "service.get",
   "sla.get",
+  "sla.getsli",
   "map.get",
   "dashboard.get",
+  "graph.get",
+  "graphitem.get",
+  "user.get",
+  "usergroup.get",
+  "role.get",
+  "mediatype.get",
+  "valuemap.get",
+  "template.get",
+]);
+
+// Admin-only privileged write methods.
+const WRITE_METHODS = new Set([
+  "event.acknowledge",
+  "user.create",
+  "user.update",
+  "user.delete",
+  "host.update",
 ]);
 
 const rpcErrorKind = (message: string) => {
@@ -220,11 +240,11 @@ Deno.serve(async (req) => {
     const { action, providerId, method, params } = body;
     if (!action) return json({ error: "Missing action" }, 400);
 
-    if (!["test", "sync", "query", "call"].includes(action)) {
+    if (!["test", "sync", "query", "write", "call"].includes(action)) {
       return json({ error: `Unknown action: ${action}` }, 400);
     }
 
-    // Only `test`, `sync`, `call` require admin. Read-only `query` is open to any auth user.
+    // Read-only `query` is open to any auth user. Everything else requires admin.
     if (action !== "query" && !isAdmin) {
       return json({ error: "Forbidden — admin only" }, 403);
     }
@@ -243,6 +263,8 @@ Deno.serve(async (req) => {
     switch (action) {
       case "query":
         return await handleQuery({ method, params }, caller, { url, token });
+      case "write":
+        return await handleWrite({ method, params }, caller, { url, token }, admin);
       case "test":
       case "sync":
       case "call":
