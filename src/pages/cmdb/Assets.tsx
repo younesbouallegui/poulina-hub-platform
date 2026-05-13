@@ -1,38 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useI18n } from "@/contexts/I18nContext";
+import { useZabbixHosts, useZabbixProblems, severityTier, type ZHost } from "@/lib/zabbix";
 import {
-  Server,
-  Boxes,
-  Network,
-  Database,
-  Layers,
-  Router,
-  Cable,
-  HardDrive,
-  Search,
-  Filter,
-  Loader2,
-  ShieldAlert,
+  Server, Boxes, Network, Database, Layers, Router, Cable, HardDrive,
+  Search, Filter, Loader2, ShieldAlert, AlertTriangle,
 } from "lucide-react";
-import type { Database as DB } from "@/integrations/supabase/types";
-
-type Asset = DB["public"]["Tables"]["assets"]["Row"];
-type Department = DB["public"]["Tables"]["departments"]["Row"];
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  server: Server,
-  container: Boxes,
-  k8s_cluster: Layers,
-  application: Boxes,
-  router: Router,
-  switch: Cable,
-  database: Database,
-  load_balancer: Network,
-  storage: HardDrive,
+  server: Server, container: Boxes, k8s_cluster: Layers, application: Boxes,
+  router: Router, switch: Cable, database: Database, load_balancer: Network, storage: HardDrive,
 };
+
+const inv = (h: ZHost): Record<string, string> =>
+  (h.inventory && !Array.isArray(h.inventory) ? h.inventory : {}) as Record<string, string>;
+
+const guessType = (h: ZHost): string => {
+  const it = inv(h).type?.toLowerCase() ?? "";
+  if (/router/.test(it)) return "router";
+  if (/switch/.test(it)) return "switch";
+  if (/database|db/.test(it)) return "database";
+  if (/storage|nas|san/.test(it)) return "storage";
+  if (/container|docker|k8s|kubernetes/.test(it)) return "container";
+  if (/load.?balancer|lb|haproxy|nginx/.test(it)) return "load_balancer";
+  if (/app/.test(it)) return "application";
+  return "server";
+};
+
+const criticalityFromTags = (h: ZHost): "critical" | "high" | "medium" | "low" => {
+  const v = h.tags?.find((t) => /^(criticality|tier|severity)$/i.test(t.tag))?.value?.toLowerCase();
+  if (v === "critical" || v === "tier1" || v === "1") return "critical";
+  if (v === "high" || v === "tier2" || v === "2") return "high";
+  if (v === "medium" || v === "tier3" || v === "3") return "medium";
+  return "low";
+};
+
+const statusOf = (h: ZHost) =>
+  h.status === "1" ? "decommissioned" : h.available === "2" ? "maintenance" : "active";
 
 const CRIT_BADGE: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive ring-destructive/30",
@@ -45,71 +50,77 @@ const STATUS_BADGE: Record<string, string> = {
   active: "bg-success/15 text-success ring-success/30",
   maintenance: "bg-warning/15 text-warning ring-warning/30",
   decommissioned: "bg-muted text-muted-foreground ring-border",
-  planned: "bg-primary/15 text-primary ring-primary/30",
 };
 
 const Assets = () => {
   const { t } = useI18n();
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: hosts = [], isLoading, error } = useZabbixHosts();
+  const { data: problems = [] } = useZabbixProblems();
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [critFilter, setCritFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [critFilter, setCritFilter] = useState("all");
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const [{ data: a }, { data: d }] = await Promise.all([
-        supabase.from("assets").select("*").order("name"),
-        supabase.from("departments").select("*").order("name"),
-      ]);
-      if (mounted) {
-        setAssets(a ?? []);
-        setDepartments(d ?? []);
-        setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
+  const enriched = useMemo(() => hosts.map((h) => {
+    const type = guessType(h);
+    const criticality = criticalityFromTags(h);
+    const status = statusOf(h);
+    const i = inv(h);
+    const ip = h.interfaces?.[0]?.ip ?? "";
+    const hostProblems = problems.filter((p) => p.hosts?.some((ph) => ph.hostid === h.hostid));
+    const worst = hostProblems.reduce<"critical" | "high" | "medium" | "low" | null>((acc, p) => {
+      const tier = severityTier(p.severity);
+      const order = { critical: 4, high: 3, medium: 2, low: 1 } as const;
+      if (!acc || order[tier] > order[acc]) return tier;
+      return acc;
+    }, null);
+    return {
+      h,
+      id: h.hostid,
+      name: h.name,
+      hostname: h.host,
+      ip_address: ip,
+      asset_type: type,
+      environment: i.tag ?? h.tags?.find((t) => t.tag === "env")?.value ?? "—",
+      criticality,
+      status,
+      os: i.os ?? "—",
+      location: i.location ?? h.tags?.find((t) => t.tag.toLowerCase() === "country")?.value ?? "—",
+      activeProblems: hostProblems.length,
+      worstSeverity: worst,
     };
-  }, []);
-
-  const deptMap = useMemo(
-    () => Object.fromEntries(departments.map((d) => [d.id, d.name])),
-    [departments]
-  );
+  }), [hosts, problems]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return assets.filter((a) => {
+    return enriched.filter((a) => {
       if (typeFilter !== "all" && a.asset_type !== typeFilter) return false;
       if (critFilter !== "all" && a.criticality !== critFilter) return false;
       if (!q) return true;
-      return [a.name, a.hostname, a.ip_address, a.os, a.location, ...(a.tags ?? [])]
-        .filter(Boolean)
+      return [a.name, a.hostname, a.ip_address, a.os, a.location].filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [assets, search, typeFilter, critFilter]);
+  }, [enriched, search, typeFilter, critFilter]);
 
-  const counts = useMemo(() => {
-    const byType: Record<string, number> = {};
-    assets.forEach((a) => (byType[a.asset_type] = (byType[a.asset_type] ?? 0) + 1));
-    return {
-      total: assets.length,
-      critical: assets.filter((a) => a.criticality === "critical").length,
-      maint: assets.filter((a) => a.status === "maintenance").length,
-      types: Object.keys(byType).length,
-    };
-  }, [assets]);
+  const counts = useMemo(() => ({
+    total: enriched.length,
+    critical: enriched.filter((a) => a.criticality === "critical").length,
+    maint: enriched.filter((a) => a.status === "maintenance").length,
+    types: new Set(enriched.map((a) => a.asset_type)).size,
+  }), [enriched]);
 
   return (
     <div className="flex flex-col">
       <PageHeader
         title={t("cmdb.assets.title")}
-        subtitle={t("cmdb.assets.subtitle")}
+        subtitle={`${t("cmdb.assets.subtitle")} · live from Zabbix`}
         icon={Server}
       />
+
+      {error && (
+        <div className="mx-6 mb-2 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
+          <AlertTriangle className="h-4 w-4" /> {String(error instanceof Error ? error.message : error)}
+        </div>
+      )}
 
       <div className="grid gap-4 px-6 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t("cmdb.assets.total")} value={counts.total} icon={Server} />
@@ -128,21 +139,15 @@ const Assets = () => {
             className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/15"
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-        >
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15">
           <option value="all">{t("cmdb.assets.allTypes")}</option>
-          {["server", "container", "k8s_cluster", "application", "router", "switch", "database", "load_balancer", "storage"].map((tp) => (
+          {Object.keys(TYPE_ICONS).map((tp) => (
             <option key={tp} value={tp}>{tp.replace("_", " ")}</option>
           ))}
         </select>
-        <select
-          value={critFilter}
-          onChange={(e) => setCritFilter(e.target.value)}
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-        >
+        <select value={critFilter} onChange={(e) => setCritFilter(e.target.value)}
+          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15">
           <option value="all">{t("cmdb.assets.allCrit")}</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
@@ -152,7 +157,7 @@ const Assets = () => {
       </div>
 
       <div className="px-6 pb-8">
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
@@ -167,10 +172,9 @@ const Assets = () => {
                 <tr>
                   <th className="px-4 py-3">{t("cmdb.assets.col.asset")}</th>
                   <th className="px-4 py-3">{t("cmdb.assets.col.type")}</th>
-                  <th className="px-4 py-3">{t("cmdb.assets.col.env")}</th>
                   <th className="px-4 py-3">{t("cmdb.assets.col.criticality")}</th>
                   <th className="px-4 py-3">{t("cmdb.assets.col.status")}</th>
-                  <th className="px-4 py-3">{t("cmdb.assets.col.dept")}</th>
+                  <th className="px-4 py-3">Active alerts</th>
                   <th className="px-4 py-3">{t("cmdb.assets.col.location")}</th>
                 </tr>
               </thead>
@@ -178,23 +182,19 @@ const Assets = () => {
                 {filtered.map((a) => {
                   const Icon = TYPE_ICONS[a.asset_type] ?? Server;
                   return (
-                    <tr
-                      key={a.id}
-                      className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30"
-                    >
+                    <tr key={a.id} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-3">
                         <Link to={`/cmdb/assets/${a.id}`} className="flex items-center gap-3 group">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/60 ring-1 ring-border transition-all group-hover:bg-primary/10 group-hover:ring-primary/30">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/60 ring-1 ring-border group-hover:bg-primary/10 group-hover:ring-primary/30">
                             <Icon className="h-4 w-4 text-foreground group-hover:text-primary" />
                           </span>
                           <div className="min-w-0">
                             <p className="truncate font-medium text-foreground group-hover:text-primary">{a.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">{a.hostname ?? a.ip_address ?? "—"}</p>
+                            <p className="truncate text-xs text-muted-foreground">{a.hostname || a.ip_address || "—"}</p>
                           </div>
                         </Link>
                       </td>
                       <td className="px-4 py-3 capitalize text-muted-foreground">{a.asset_type.replace("_", " ")}</td>
-                      <td className="px-4 py-3 capitalize text-muted-foreground">{a.environment}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ring-1 ${CRIT_BADGE[a.criticality]}`}>
                           {a.criticality}
@@ -205,8 +205,16 @@ const Assets = () => {
                           {a.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{a.department_id ? deptMap[a.department_id] : "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{a.location ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        {a.activeProblems > 0 ? (
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${a.worstSeverity ? CRIT_BADGE[a.worstSeverity] : CRIT_BADGE.medium}`}>
+                            <AlertTriangle className="h-3 w-3" /> {a.activeProblems}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{a.location}</td>
                     </tr>
                   );
                 })}
@@ -220,26 +228,17 @@ const Assets = () => {
 };
 
 const Stat = ({
-  label,
-  value,
-  icon: Icon,
-  accent,
+  label, value, icon: Icon, accent,
 }: {
-  label: string;
-  value: number;
-  icon: React.ComponentType<{ className?: string }>;
+  label: string; value: number; icon: React.ComponentType<{ className?: string }>;
   accent?: "destructive" | "warning";
 }) => (
   <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-elevated">
-    <span
-      className={`flex h-10 w-10 items-center justify-center rounded-lg ring-1 ${
-        accent === "destructive"
-          ? "bg-destructive/10 text-destructive ring-destructive/20"
-          : accent === "warning"
-            ? "bg-warning/10 text-warning ring-warning/20"
-            : "bg-primary/10 text-primary ring-primary/20"
-      }`}
-    >
+    <span className={`flex h-10 w-10 items-center justify-center rounded-lg ring-1 ${
+      accent === "destructive" ? "bg-destructive/10 text-destructive ring-destructive/20"
+      : accent === "warning" ? "bg-warning/10 text-warning ring-warning/20"
+      : "bg-primary/10 text-primary ring-primary/20"
+    }`}>
       <Icon className="h-5 w-5" />
     </span>
     <div>

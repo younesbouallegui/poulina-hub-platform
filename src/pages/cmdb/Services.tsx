@@ -1,112 +1,110 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useMemo } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useI18n } from "@/contexts/I18nContext";
-import { Layers, Loader2, ShieldAlert, Activity } from "lucide-react";
-import { Link } from "react-router-dom";
-import type { Database as DB } from "@/integrations/supabase/types";
+import { Layers, Loader2, ShieldAlert, Activity, AlertTriangle } from "lucide-react";
+import { useZabbixServices, useZabbixProblems } from "@/lib/zabbix";
 
-type Svc = DB["public"]["Tables"]["business_services"]["Row"];
-type Asset = DB["public"]["Tables"]["assets"]["Row"];
-type Map = DB["public"]["Tables"]["service_assets"]["Row"];
+const STATUS_DOT: Record<string, string> = {
+  ok: "bg-success",
+  warn: "bg-warning",
+  fail: "bg-destructive",
+};
 
-const CRIT_DOT: Record<string, string> = {
-  critical: "bg-destructive",
-  high: "bg-warning",
-  medium: "bg-primary",
-  low: "bg-muted-foreground",
+const statusOf = (s: string): keyof typeof STATUS_DOT => {
+  const n = parseInt(s, 10);
+  if (n >= 4) return "fail";
+  if (n >= 2) return "warn";
+  return "ok";
 };
 
 const Services = () => {
   const { t } = useI18n();
-  const [services, setServices] = useState<Svc[]>([]);
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [maps, setMaps] = useState<Map[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: services = [], isLoading } = useZabbixServices();
+  const { data: problems = [] } = useZabbixProblems();
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const [s, a, m] = await Promise.all([
-        supabase.from("business_services").select("*").order("name"),
-        supabase.from("assets").select("*"),
-        supabase.from("service_assets").select("*"),
-      ]);
-      if (mounted) {
-        setServices(s.data ?? []);
-        setAssets(a.data ?? []);
-        setMaps(m.data ?? []);
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+  const tree = useMemo(() => {
+    const childIds = new Set<string>();
+    services.forEach((s) => s.children?.forEach((c) => childIds.add(c.serviceid)));
+    return services.filter((s) => !childIds.has(s.serviceid));
+  }, [services]);
 
-  const assetsByService = useMemo(() => {
-    const out: Record<string, Asset[]> = {};
-    for (const m of maps) {
-      const a = assets.find((x) => x.id === m.asset_id);
-      if (!a) continue;
-      (out[m.service_id] ??= []).push(a);
-    }
-    return out;
-  }, [assets, maps]);
+  const problemsForService = (tags?: Array<{ tag: string; value: string }>) => {
+    if (!tags?.length) return 0;
+    return problems.filter((p) =>
+      tags.some((tg) => p.name.toLowerCase().includes(tg.value?.toLowerCase() ?? ""))
+    ).length;
+  };
 
   return (
     <div className="flex flex-col">
       <PageHeader
         title={t("cmdb.services.title")}
-        subtitle={t("cmdb.services.subtitle")}
+        subtitle={`${t("cmdb.services.subtitle")} · live from Zabbix`}
         icon={Layers}
       />
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
+      ) : services.length === 0 ? (
+        <div className="mx-6 mb-8 rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+          No business services defined in Zabbix yet.
+        </div>
       ) : (
         <div className="grid gap-4 px-6 pb-8 md:grid-cols-2">
-          {services.map((s) => {
-            const list = assetsByService[s.id] ?? [];
-            const critical = list.filter((a) => a.criticality === "critical").length;
+          {tree.map((s) => {
+            const status = statusOf(s.status);
+            const childCount = s.children?.length ?? 0;
+            const probCount = problemsForService(s.problem_tags);
             return (
-              <article key={s.id} className="rounded-xl border border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-elevated">
+              <article key={s.serviceid} className="rounded-xl border border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-elevated">
                 <header className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${CRIT_DOT[s.criticality]}`} />
+                      <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status]}`} />
                       <h3 className="truncate text-base font-semibold text-foreground">{s.name}</h3>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
+                    {s.description && <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>}
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("cmdb.services.sla")}</p>
-                    <p className="text-lg font-semibold text-foreground">{Number(s.sla_target).toFixed(2)}%</p>
-                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ${
+                    status === "fail" ? "bg-destructive/10 text-destructive ring-destructive/30" :
+                    status === "warn" ? "bg-warning/10 text-warning ring-warning/30" :
+                    "bg-success/10 text-success ring-success/30"
+                  }`}>{status}</span>
                 </header>
 
                 <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4 text-center">
-                  <Stat icon={Layers} label={t("cmdb.services.assets")} value={list.length} />
-                  <Stat icon={ShieldAlert} label={t("cmdb.services.critical")} value={critical} accent={critical > 0 ? "destructive" : undefined} />
-                  <Stat icon={Activity} label={t("cmdb.services.criticality")} value={<span className="capitalize">{s.criticality}</span>} />
+                  <Stat icon={Layers} label="Children" value={childCount} />
+                  <Stat icon={AlertTriangle} label="Problems" value={probCount} accent={probCount > 0 ? "destructive" : undefined} />
+                  <Stat icon={Activity} label="Algorithm" value={<span className="text-[11px]">{s.algorithm ?? "—"}</span>} />
                 </div>
 
-                {list.length > 0 && (
+                {s.children && s.children.length > 0 && (
                   <div className="mt-4">
-                    <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">{t("cmdb.services.dependencies")}</p>
+                    <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Sub-services</p>
                     <ul className="flex flex-wrap gap-1.5">
-                      {list.map((a) => (
-                        <li key={a.id}>
-                          <Link
-                            to={`/cmdb/assets/${a.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] text-foreground ring-1 ring-border transition-all hover:bg-primary/10 hover:text-primary hover:ring-primary/30"
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${CRIT_DOT[a.criticality]}`} />
-                            {a.name}
-                          </Link>
-                        </li>
-                      ))}
+                      {s.children.map((c) => {
+                        const child = services.find((x) => x.serviceid === c.serviceid);
+                        const cs = child ? statusOf(child.status) : "ok";
+                        return (
+                          <li key={c.serviceid} className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-2.5 py-1 text-[11px] text-foreground ring-1 ring-border">
+                            <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[cs]}`} />
+                            {child?.name ?? c.name ?? c.serviceid}
+                          </li>
+                        );
+                      })}
                     </ul>
+                  </div>
+                )}
+
+                {s.problem_tags && s.problem_tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {s.problem_tags.map((tg, i) => (
+                      <span key={i} className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary ring-1 ring-primary/20">
+                        <ShieldAlert className="mr-1 h-2.5 w-2.5" />{tg.tag}{tg.value ? `:${tg.value}` : ""}
+                      </span>
+                    ))}
                   </div>
                 )}
               </article>
@@ -118,16 +116,8 @@ const Services = () => {
   );
 };
 
-const Stat = ({
-  icon: Icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: React.ReactNode;
-  accent?: "destructive";
+const Stat = ({ icon: Icon, label, value, accent }: {
+  icon: React.ComponentType<{ className?: string }>; label: string; value: React.ReactNode; accent?: "destructive";
 }) => (
   <div>
     <Icon className={`mx-auto mb-1 h-4 w-4 ${accent === "destructive" ? "text-destructive" : "text-muted-foreground"}`} />
