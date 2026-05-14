@@ -22,7 +22,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-type Point = { host: ZHost; lat: number; lon: number; sev: number; tier: string; alerts: number };
+type Tier = "critical" | "high" | "medium" | "low";
+type Point = { host: ZHost; lat: number; lon: number; sev: number; tier: Tier; alerts: number };
 
 const Maps = () => {
   const { data: hosts = [], isLoading } = useZabbixHosts();
