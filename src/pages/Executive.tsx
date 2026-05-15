@@ -3,17 +3,19 @@ import { Link } from "react-router-dom";
 import {
   Activity, AlertTriangle, ArrowUpRight, Boxes, Globe2, Maximize2,
   Minimize2, RadioTower, ShieldCheck, Timer, TrendingDown, TrendingUp, Zap,
+  LayoutGrid, Map as MapIcon, GaugeCircle, Users as UsersIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip,
   PieChart, Pie, Cell, BarChart, Bar, RadialBarChart, RadialBar, PolarAngleAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MapView } from "@/components/MapView";
 import { useI18n } from "@/contexts/I18nContext";
 import {
   hostCoords, severityColor, severityTier,
   useZabbixEvents, useZabbixHosts, useZabbixProblems,
-  useZabbixServices, useZabbixSLAs,
+  useZabbixServices, useZabbixSLAs, useZabbixUsers, useZabbixUserGroups, useZabbixRoles,
 } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,8 @@ const SEV_COLORS: Record<string, string> = {
   disaster: "#dc2626", high: "#ea580c", average: "#eab308",
   warning: "#3b82f6", info: "#22c55e",
 };
+
+type Tab = "overview" | "map" | "incidents" | "sla" | "governance";
 
 export default function Executive() {
   const { t } = useI18n();
@@ -33,7 +37,11 @@ export default function Executive() {
     limit: 500,
     timeFrom: Math.floor(Date.now() / 1000) - 24 * 3600,
   });
+  const { data: zUsers = [] } = useZabbixUsers();
+  const { data: zGroups = [] } = useZabbixUserGroups();
+  const { data: zRoles = [] } = useZabbixRoles();
   const [nocWall, setNocWall] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
 
   // ---- KPIs ----------------------------------------------------------------
   const onlineHosts = hosts.filter((h) => h.available === "1").length;
