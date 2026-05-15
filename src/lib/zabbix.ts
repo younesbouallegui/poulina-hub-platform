@@ -286,18 +286,21 @@ export function useZabbixEvents(opts?: { triggerIds?: string[]; limit?: number; 
   });
 }
 
-export async function acknowledgeEvent(eventId: string, message: string) {
+export async function zabbixWrite<T = unknown>(method: string, params: unknown): Promise<T> {
   const { data, error } = await supabase.functions.invoke("zabbix-connector", {
-    body: {
-      action: "write",
-      method: "event.acknowledge",
-      params: { eventids: eventId, action: 6, message }, // 2=ack + 4=add msg
-    },
+    body: { action: "write", method, params },
   });
-  if (error) throw new Error(error.message);
-  if (!data?.ok) throw new Error(data?.error ?? "Failed to acknowledge");
-  return data.result;
+  if (error) {
+    const ctx = (error as { context?: Response }).context;
+    const body = ctx ? await ctx.clone().json().catch(() => null) : null;
+    throw new Error(body?.error ? `${error.message}: ${body.error}` : error.message ?? "Zabbix write failed");
+  }
+  if (!data?.ok) throw new Error(data?.error ?? "Zabbix returned an error");
+  return data.result as T;
 }
+
+export const acknowledgeEvent = (eventId: string, message: string) =>
+  zabbixWrite("event.acknowledge", { eventids: eventId, action: 6, message });
 
 // ---------- Business services / SLA ----------
 

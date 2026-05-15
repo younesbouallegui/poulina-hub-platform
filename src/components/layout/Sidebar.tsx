@@ -21,6 +21,8 @@ import {
   Plug,
   Grid3x3,
   TerminalSquare,
+  Globe2,
+  Map as MapIcon,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
@@ -62,7 +64,9 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     {
       titleKey: "nav.section.overview",
       items: [
+        { to: "/executive", labelKey: "nav.executive", icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/dashboards", labelKey: "nav.dashboards", icon: Grid3x3, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/maps", labelKey: "nav.maps", icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/ai", labelKey: "nav.ai", icon: Sparkles, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },

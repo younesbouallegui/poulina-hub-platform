@@ -3,17 +3,19 @@ import { Link } from "react-router-dom";
 import {
   Activity, AlertTriangle, ArrowUpRight, Boxes, Globe2, Maximize2,
   Minimize2, RadioTower, ShieldCheck, Timer, TrendingDown, TrendingUp, Zap,
+  LayoutGrid, Map as MapIcon, GaugeCircle, Users as UsersIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip,
   PieChart, Pie, Cell, BarChart, Bar, RadialBarChart, RadialBar, PolarAngleAxis,
 } from "recharts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MapView } from "@/components/MapView";
 import { useI18n } from "@/contexts/I18nContext";
 import {
   hostCoords, severityColor, severityTier,
   useZabbixEvents, useZabbixHosts, useZabbixProblems,
-  useZabbixServices, useZabbixSLAs,
+  useZabbixServices, useZabbixSLAs, useZabbixUsers, useZabbixUserGroups, useZabbixRoles,
 } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,8 @@ const SEV_COLORS: Record<string, string> = {
   disaster: "#dc2626", high: "#ea580c", average: "#eab308",
   warning: "#3b82f6", info: "#22c55e",
 };
+
+type Tab = "overview" | "map" | "incidents" | "sla" | "governance";
 
 export default function Executive() {
   const { t } = useI18n();
@@ -33,7 +37,11 @@ export default function Executive() {
     limit: 500,
     timeFrom: Math.floor(Date.now() / 1000) - 24 * 3600,
   });
+  const { data: zUsers = [] } = useZabbixUsers();
+  const { data: zGroups = [] } = useZabbixUserGroups();
+  const { data: zRoles = [] } = useZabbixRoles();
   const [nocWall, setNocWall] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
 
   // ---- KPIs ----------------------------------------------------------------
   const onlineHosts = hosts.filter((h) => h.available === "1").length;
@@ -174,6 +182,105 @@ export default function Executive() {
         }
       />
 
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-border px-4 sm:px-6">
+        {([
+          ["overview", "Overview", LayoutGrid],
+          ["map", "Global Map", MapIcon],
+          ["incidents", "Incidents", AlertTriangle],
+          ["sla", "SLA & Services", GaugeCircle],
+          ["governance", "Governance", UsersIcon],
+        ] as const).map(([k, label, Icon]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={cn(
+              "inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors -mb-px",
+              tab === k ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "map" && (
+        <div className="flex-1 p-4">
+          <MapView height="calc(100vh - 14rem)" />
+        </div>
+      )}
+
+      {tab === "incidents" && (
+        <div className="p-4 sm:p-6">
+          <Panel title="Most recent problems" subtitle={`${problems.length} active`}>
+            <div className="overflow-hidden rounded-lg border border-border/60">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/40 text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr><th className="px-3 py-2">Severity</th><th className="px-3 py-2">Problem</th><th className="px-3 py-2">Host</th><th className="px-3 py-2">Ack</th><th className="px-3 py-2 text-right">When</th></tr>
+                </thead>
+                <tbody>
+                  {problems.slice(0, 30).map((p) => (
+                    <tr key={p.eventid} className="border-t border-border/40 hover:bg-muted/30">
+                      <td className="px-3 py-2"><span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white" style={{ background: severityColor(p.severity) }}>{severityTier(p.severity)}</span></td>
+                      <td className="px-3 py-2 font-medium"><Link to={`/s/${p.eventid}`} className="hover:underline">{p.name}</Link></td>
+                      <td className="px-3 py-2 text-muted-foreground">{p.hostName ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs">{p.acknowledged === "1" ? "Yes" : "No"}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">{new Date(parseInt(p.clock, 10) * 1000).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {problems.length === 0 && <tr><td colSpan={5} className="px-3 py-10 text-center text-muted-foreground">No active problems</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {tab === "sla" && (
+        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-2">
+          <Panel title="SLA targets" subtitle={`${slas.length} configured`}>
+            {slas.length === 0 ? <p className="py-8 text-center text-xs text-muted-foreground">No SLAs configured in Zabbix</p> : (
+              <ul className="space-y-2">{slas.map((s) => (
+                <li key={s.slaid} className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+                  <span className="truncate">{s.name}</span>
+                  <span className="font-mono text-xs">{s.slo}%</span>
+                </li>
+              ))}</ul>
+            )}
+          </Panel>
+          <Panel title="Business services posture" subtitle={`${services.length} services`}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={[{ n: "OK", v: okServices }, { n: "Degraded", v: services.length - okServices }]}>
+                <XAxis dataKey="n" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
+                <Bar dataKey="v" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Panel>
+        </div>
+      )}
+
+      {tab === "governance" && (
+        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-3">
+          <Kpi icon={UsersIcon} label="Zabbix users" value={String(zUsers.length)} hint="directory" />
+          <Kpi icon={ShieldCheck} label="User groups" value={String(zGroups.length)} hint="permission scopes" />
+          <Kpi icon={ShieldCheck} label="Roles" value={String(zRoles.length)} hint="RBAC roles" />
+          <Panel className="lg:col-span-3" title="IAM quick view" subtitle="Live mirror of Zabbix identity">
+            <Link to="/governance/users" className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">Open full IAM Console <ArrowUpRight className="h-3.5 w-3.5" /></Link>
+            <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2">
+              {zUsers.slice(0, 8).map((u) => (
+                <li key={u.userid} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+                  <span className="font-medium">{u.username}</span>
+                  <span className="text-xs text-muted-foreground">{[u.name, u.surname].filter(Boolean).join(" ") || "—"}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
+      )}
+
+      {tab === "overview" && (
       <div className={cn("grid gap-4 p-4 sm:p-6", nocWall ? "lg:grid-cols-6" : "lg:grid-cols-4")}>
         {/* Hero KPIs */}
         <ScoreGauge title="Service Health" value={health} good />
@@ -295,6 +402,7 @@ export default function Executive() {
           </div>
         </Panel>
       </div>
+      )}
     </div>
   );
 }
