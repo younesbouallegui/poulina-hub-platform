@@ -53,7 +53,7 @@ export default function ApplicationsCommand() {
       a.slaActual, a.availability, a.errorRate, a.latencyP95Ms, a.activeIncidents,
       a.businessOwner, a.team, a.department, a.region,
     ]);
-    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replaceAll('"','""')}"`).join(",")).join("\n");
+    const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).split('"').join('""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "applications.csv"; a.click();
   };
