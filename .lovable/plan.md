@@ -1,75 +1,81 @@
-# Phase 2 — Full Zabbix-Native Rebuild
+## Phase 3 — Enterprise Application Monitoring Platform
 
-This plan covers replacing every remaining mock/demo layer with live Zabbix data across 8 modules, plus backend hardening and a real interactive world map. The work is large; I'll execute it in sequenced waves so each wave lands in a working, deployable state.
+This is a very large scope (a full APM + CMDB + topology + executive layer on top of the existing Zabbix UI). To ship it cleanly without breaking what already works, I'll build it **frontend-first on a typed mock data layer**, then we can wire each module to Lovable Cloud / Zabbix in follow-up phases.
 
-## Wave 0 — Backend & Foundation (prereq for everything)
+### Approach
 
-**`supabase/functions/zabbix-connector/index.ts`**
-- Expand whitelist: add `event.get`, `service.get`, `sla.get`, `map.get`, `dashboard.get`, `graph.get`, `trend.get`, `usergroup.get`, `role.get`, `mediatype.get`, `user.get`, `hostinterface.get`, `acknowledge.create`-readonly variants.
-- Add **privileged write router** (`action: "write"`) gated by `admin` role for: `event.acknowledge`, `user.create`, `user.update`, `user.delete`, `host.update` (inventory only).
-- Add structured audit logging to a new `zabbix_audit_log` table for every write.
-- Rate limit (per-user, in-memory token bucket), 15s timeout, 2x retry with exponential backoff.
-- Bump `CONNECTOR_VERSION` to `2.0.0` and surface in every response so frontend can detect deploy drift.
+- All new code lives under a new `applications/` domain (types, mock store, hooks, pages, components) — does **not** touch existing Incidents / Infrastructure / Dashboards.
+- A single in-memory store (`useApplicationsStore`) with React Query hooks simulates real-time updates (poll + jitter). Easy to swap for Cloud later.
+- New routes added to `App.tsx`, new sidebar group "Applications".
 
-**Database migration**
-- `zabbix_audit_log (id, user_id, action, method, params jsonb, result text, created_at)`.
-- `host_geo_overrides (host_id, lat, lon, source)` for manual geo enrichment.
+### Deliverables (this phase)
 
-**`src/lib/zabbix.ts`** — extend with typed hooks:
-- `useZabbixEvents`, `useZabbixServices`, `useZabbixSLA`, `useZabbixDashboards`, `useZabbixMaps`, `useZabbixGraphs`, `useZabbixHistory`, `useZabbixTrends`, `useZabbixUsers`, `useZabbixUserGroups`, `useZabbixRoles`.
-- All fall back to synced DB tables when connector returns "Unknown action".
-- All use React Query with 30s refresh + error boundary friendly errors.
+**1. Data model** (`src/types/applications.ts`)
+- `Application`, `AppService`, `AppComponent`, `AppJob`, `AppAPIEndpoint`, `AppDatabase`, `AppLogEntry`, `AppDependency`, `AppAlertRule`, `AppIncidentLink`
+- Enums: env (prod/uat/dev), type (web/api/db/batch/worker/scheduler/middleware/k8s/vm), criticality tier (T0–T3), status (healthy/warning/degraded/critical/unknown)
+- Monitoring scope flags (the ~20 checkboxes from spec)
 
-## Wave 1 — Incidents & SLA
+**2. Mock data + store** (`src/data/applicationsMock.ts`, `src/stores/applications.ts`)
+- ~12 realistic applications across the existing HOSTS (SAP ERP, Billing API, Customer Portal, PostgreSQL Cluster, HR Platform, Auth Service, etc.)
+- Live-updating metrics (health/SLA/error rate/latency) via React Query with refetch interval
+- CRUD via Zustand-style store
 
-- `src/pages/Incidents.tsx`: replace `getIncidentsForUser` with `useZabbixProblems` + `useZabbixEvents`. Real timeline, severity transitions, host correlation, MTTD/MTTR, ack via privileged write.
-- `src/pages/SLA.tsx`: `useZabbixServices` + `useZabbixSLA`; per-service uptime, breach calc, real CSV/PDF export from live data.
-- New widget `IncidentTimeline` rebuilt from real `event.get` history.
+**3. Routes & pages**
+- `/applications` — **Application Command Dashboard**: KPI strip, status grid (sortable table + card view toggle), heatmap, top failing / noisy / business-critical panels, filters (env, criticality, dept, region, status), search, fullscreen NOC mode, export CSV.
+- `/applications/registry` — **Application Registry / CMDB**: list + create/edit dialog (multi-step: identity → ownership → servers → monitoring scope → SLA → tags/deps).
+- `/applications/:id` — **Application Detail Cockpit** with tabs: Overview, Logs, Database, Jobs, API, Infrastructure, Incidents, Dependencies, Alerts, Settings.
+- `/applications/topology` — **Service Map**: interactive SVG/Canvas graph (force layout) showing apps ↔ servers ↔ DBs ↔ APIs, blast-radius highlight on hover, severity coloring.
+- `/applications/alerts` — alert rule manager (rule list, create/edit, notification channels: Email/Slack/Teams/Webhook/Zabbix).
 
-## Wave 2 — CMDB & Business Services
+**4. Executive integration**
+- Add **"Application Operations Center"** section to `/executive`: total apps, healthy/degraded/critical donut, business-critical KPI tiles, global app SLA gauge, risk score, availability heatmap by region, top-5 risk list.
 
-- `src/pages/cmdb/Assets.tsx`, `AssetDetail.tsx`, `Services.tsx`: use `useZabbixHosts` with full inventory (vendor, model, OS, location, owner, tags, groups, criticality from tag).
-- New `src/pages/Services.tsx` (business services tree) using `service.get` recursive — parent/child topology, health rollup.
+**5. Navigation & RBAC**
+- Sidebar: new "Applications" group (Command, Registry, Topology, Alerts).
+- `RoleGuard` on Registry write actions and Alerts (admin/operator).
+- Audit log entries emitted via existing governance audit hook for create/update/delete.
 
-## Wave 3 — Dashboards, Analytics, Executive
+**6. UX polish**
+- Real-time status pulses (animated dot), severity color tokens added to `index.css` (`--status-healthy/warning/degraded/critical`).
+- Dark/light themed via existing `ThemeContext`.
+- Responsive, keyboard-navigable, drill-down everywhere (app row → detail; topology node → detail).
 
-- `src/pages/Dashboards.tsx`: list real Zabbix dashboards via `dashboard.get`; render each widget by type (graph, problems, hosts) using `graph.get` + `history.get`.
-- `src/components/dashboards/PanelRenderer.tsx`: support live Zabbix item series (recharts).
-- `src/pages/Executive.tsx`: KPI scorecards from real aggregates (total hosts, active problems by severity, SLA posture avg, top offenders, risk score = weighted sum of unresolved high/disaster).
+### What's explicitly deferred (call out so we agree)
 
-## Wave 4 — Maps (real interactive world map)
+- Real Zabbix item/trigger ingestion → still uses existing `zabbix-connector` shape; we'll wire the actual pull in Phase 3.5.
+- OpenTelemetry / Prometheus / Loki / Tempo / Jaeger ingestion.
+- WebSocket transport (we simulate with React Query polling now; swap to Supabase Realtime later).
+- Persisting the registry to Postgres (currently in-memory + localStorage). I'll add the Cloud-backed schema + RLS in the immediately-following turn once you approve this UI plan.
 
-- Add `leaflet` + `react-leaflet` + `leaflet.markercluster`.
-- New `src/pages/Maps.tsx` with: OSM + ESRI satellite layer toggle, marker clustering, severity-colored markers, popup → host detail, layer for Zabbix topology maps via `map.get`.
-- Geo source priority: `host.inventory.location_lat/lon` → `host_geo_overrides` → country geocoding fallback (offline country-centroid table bundled, no third-party calls).
-- NOC wallboard mode (full-screen, auto-rotate hotspots).
+### Technical notes
 
-## Wave 5 — IAM / Users / SSO
+```text
+src/
+  types/applications.ts
+  data/applicationsMock.ts
+  stores/applications.ts                (zustand + persist)
+  hooks/useApplications.ts              (RQ wrappers, polling)
+  pages/applications/
+    Command.tsx
+    Registry.tsx
+    Detail.tsx
+    Topology.tsx
+    Alerts.tsx
+  components/applications/
+    AppStatusBadge.tsx
+    AppHealthScore.tsx
+    AppGrid.tsx
+    AppFilters.tsx
+    AppHeatmap.tsx
+    AppCreateDialog.tsx
+    MonitoringScopeForm.tsx
+    TopologyGraph.tsx
+    detail/{Overview,Logs,Database,Jobs,Api,Infra,Incidents,Dependencies,Alerts}Tab.tsx
+  components/executive/AppOpsCenter.tsx
+```
 
-- `src/pages/governance/Users.tsx`: live `user.get` + `usergroup.get` + `role.get`.
-- Admin CRUD via privileged write route; audit log viewer in `AuditLog.tsx` reading `zabbix_audit_log`.
-- SSO abstraction layer (config UI only, documents SAML/OIDC/LDAP/Azure AD wiring — actual provider config is operational, not codeable here).
+### Confirm before I build
 
-## Wave 6 — Cleanup
-
-- Delete `src/data/mockData.ts` and `src/data/monitoringMock.ts` references; keep type-only exports if reused, otherwise remove.
-- Add error boundaries + skeletons to every page.
-- Verify build, lint, deno check on connector.
-
-## Technical notes
-
-- All Zabbix calls remain server-proxied; frontend never sees the token.
-- Writes require `admin` role enforced both in connector AND in `RoleGuard` UI.
-- Geocoding is offline (bundled country/city centroid JSON) — no external API calls, no key leakage.
-- React Query: 30s refetchInterval for live data, 5min for static (roles, groups), `staleTime: 0` on critical alerts.
-- Bundle impact: Leaflet + cluster ≈ 180KB gzipped — acceptable for an ops console.
-
-## Out of scope (explicit)
-
-- Real SAML/OIDC IdP integration (requires customer-side IdP setup).
-- Writing back to Zabbix host configuration beyond inventory fields.
-- Custom dashboard builder drag-and-drop (we render Zabbix-defined dashboards; building new ones stays as the existing PanelBuilder).
-
-## Execution order
-
-I'll ship Wave 0 + Wave 1 in the first batch (backend + Incidents + SLA wired live), then proceed wave-by-wave. Each wave leaves the app in a deployable state. Approve to start.
+1. Frontend-first with mock store now, Cloud-backed schema + RLS in the very next step — OK?
+2. Should the Topology graph use a lightweight custom SVG force layout (zero deps, fast), or do you want me to add `reactflow` / `cytoscape`?
+3. Any apps/servers I should seed besides the obvious (SAP ERP, Billing API, Customer Portal, PostgreSQL, HR, Auth)?
