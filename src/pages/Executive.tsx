@@ -19,6 +19,7 @@ import {
 } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 import { AppOpsCenter } from "@/components/executive/AppOpsCenter";
+import { InfraOpsCenter } from "@/components/executive/InfraOpsCenter";
 
 const SEV_ORDER = ["disaster", "high", "average", "warning", "info"] as const;
 const SEV_COLORS: Record<string, string> = {
@@ -406,6 +407,9 @@ export default function Executive() {
         {/* Application Operations Center */}
         <div className="lg:col-span-4">
           <AppOpsCenter />
+        </div>
+        <div className="lg:col-span-4">
+          <InfraOpsCenter />
         </div>
       </div>
       )}
