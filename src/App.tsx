@@ -79,6 +79,11 @@ const App = () => (
                   <Route path="/cmdb/assets" element={<Assets />} />
                   <Route path="/cmdb/assets/:id" element={<AssetDetail />} />
                   <Route path="/cmdb/services" element={<Services />} />
+                  <Route path="/applications" element={<ApplicationsCommand />} />
+                  <Route path="/applications/registry" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><ApplicationsRegistry /></RoleGuard>} />
+                  <Route path="/applications/topology" element={<ApplicationsTopology />} />
+                  <Route path="/applications/alerts" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><ApplicationsAlerts /></RoleGuard>} />
+                  <Route path="/applications/:id" element={<ApplicationDetail />} />
                   <Route
                     path="/governance/users"
                     element={
