@@ -92,7 +92,25 @@ const App = () => (
                   <Route path="/incidents" element={<Incidents />} />
                   <Route path="/ai" element={<AIInsights />} />
                   <Route path="/s/:eventId" element={<IncidentChat />} />
-                  <Route path="/infrastructure" element={<Infrastructure />} />
+                  <Route path="/infrastructure" element={<InfrastructureOverview />} />
+                  <Route path="/infrastructure/legacy" element={<Infrastructure />} />
+                  <Route path="/infrastructure/servers" element={<InfraServers />} />
+                  <Route path="/infrastructure/servers/:id" element={<InfraServerDetail />} />
+                  <Route path="/infrastructure/vms" element={<InfraVMs />} />
+                  <Route path="/infrastructure/containers" element={<InfraContainers />} />
+                  <Route path="/infrastructure/kubernetes" element={<InfraKubernetes />} />
+                  <Route path="/infrastructure/networks" element={<InfraNetworks />} />
+                  <Route path="/infrastructure/storage" element={<InfraStorage />} />
+                  <Route path="/infrastructure/databases" element={<InfraDatabases />} />
+                  <Route path="/infrastructure/load-balancers" element={<InfraLoadBalancers />} />
+                  <Route path="/infrastructure/cloud" element={<InfraCloud />} />
+                  <Route path="/infrastructure/sites" element={<InfraSites />} />
+                  <Route path="/infrastructure/topology" element={<InfraTopologyPage />} />
+                  <Route path="/infrastructure/capacity" element={<InfraCapacity />} />
+                  <Route path="/infrastructure/maintenance" element={<InfraMaintenance />} />
+                  <Route path="/infrastructure/provisioning" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><InfraProvisioning /></RoleGuard>} />
+                  <Route path="/infrastructure/discovery" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><InfraDiscovery /></RoleGuard>} />
+                  <Route path="/infrastructure/policies" element={<RoleGuard allow={["super_admin", "admin", "auditor"]}><InfraPolicies /></RoleGuard>} />
                   <Route path="/sla" element={<SLA />} />
                   <Route path="/cmdb/assets" element={<Assets />} />
                   <Route path="/cmdb/assets/:id" element={<AssetDetail />} />
