@@ -23,9 +23,10 @@ type Tier = "critical" | "high" | "medium" | "low";
 type Status = "open" | "acknowledged" | "resolved";
 
 const Incidents = () => {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const { t } = useI18n();
   const { toast } = useToast();
+  const audit = useAuditLog();
   const canAct = hasRole("admin", "operator");
 
   const { data: problems = [], isLoading, refetch, isFetching, isError } = useZabbixProblems();
