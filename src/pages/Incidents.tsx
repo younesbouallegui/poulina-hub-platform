@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Filter, Loader2, RefreshCw, X, Zap } from "lucide-react";
+import { AlertTriangle, Brain, CheckCircle2, Filter, Loader2, RefreshCw, Wand2, X, Zap } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -12,14 +12,21 @@ import {
   useZabbixProblems,
   type ZProblem,
 } from "@/lib/zabbix";
+import { AiExplainPanel } from "@/components/incidents/AiExplainPanel";
+import { AutoRemediatePanel } from "@/components/incidents/AutoRemediatePanel";
+import { IncidentAuditTimeline } from "@/components/incidents/IncidentAuditTimeline";
+import { AiTrustBadge } from "@/components/incidents/AiTrustBadge";
+import { useAiPolicies, useAuditLog } from "@/hooks/useAiOps";
+import type { RemediationPolicy } from "@/types/aiops";
 
 type Tier = "critical" | "high" | "medium" | "low";
 type Status = "open" | "acknowledged" | "resolved";
 
 const Incidents = () => {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const { t } = useI18n();
   const { toast } = useToast();
+  const audit = useAuditLog();
   const canAct = hasRole("admin", "operator");
 
   const { data: problems = [], isLoading, refetch, isFetching, isError } = useZabbixProblems();
@@ -65,6 +72,12 @@ const Incidents = () => {
     setAcking(p.eventid);
     try {
       await acknowledgeEvent(p.eventid, "Acknowledged from Lovable Operations Console");
+      audit.append({
+        actor: user?.email ?? "unknown",
+        kind: "ack",
+        message: `Acknowledged "${p.name}"`,
+        meta: { eventId: p.eventid, host: p.hostName },
+      });
       toast({ title: t("inc.acknowledged") });
       refetch();
       if (selected?.eventid === p.eventid) setSelected({ ...selected, acknowledged: "1" });
@@ -213,6 +226,15 @@ const Kpi = ({ label, value, accent }: { label: string; value: number; accent: "
   </div>
 );
 
+type DrawerTab = "overview" | "ai" | "remediate" | "audit";
+
+const POLICY_OPTIONS: { v: RemediationPolicy; label: string }[] = [
+  { v: "off", label: "Off" },
+  { v: "suggest", label: "Suggest" },
+  { v: "approval", label: "Approval" },
+  { v: "autonomous", label: "Autonomous" },
+];
+
 const IncidentDrawer = ({
   problem,
   canAct,
@@ -227,85 +249,187 @@ const IncidentDrawer = ({
   onClose: () => void;
 }) => {
   const { t } = useI18n();
+  const { user, hasRole } = useAuth();
   const tier = severityTier(problem.severity) as Tier;
   const ts = new Date(parseInt(problem.clock, 10) * 1000);
+  const [tab, setTab] = useState<DrawerTab>("overview");
+  const host = problem.hostName ?? problem.hosts?.[0]?.name ?? "unknown";
+  const assetKey = host;
+  const { getPolicy, setPolicy } = useAiPolicies();
+  const currentPolicy = getPolicy(assetKey)?.policy ?? "off";
+  const isAdmin = hasRole("admin", "super_admin");
+
   const { data: events = [], isLoading } = useZabbixEvents({
     triggerIds: [problem.objectid],
     limit: 50,
-    timeFrom: parseInt(problem.clock, 10) - 60 * 60 * 24 * 7, // last 7d around event
+    timeFrom: parseInt(problem.clock, 10) - 60 * 60 * 24 * 7,
   });
 
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <aside className="relative z-10 ml-auto flex h-full w-full max-w-lg flex-col border-l border-border bg-card shadow-elevated animate-slide-in-right">
+      <aside className="relative z-10 ml-auto flex h-full w-full max-w-xl flex-col border-l border-border bg-card shadow-elevated animate-slide-in-right">
         <div className="flex items-start justify-between border-b border-border p-5">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
               {t("inc.detailsTitle")}
             </p>
             <h3 className="mt-1 truncate text-lg font-semibold text-foreground">{problem.name}</h3>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+            <p className="mt-0.5 flex items-center gap-2 font-mono text-xs text-muted-foreground">
               event #{problem.eventid} · trigger #{problem.objectid}
+              <AiTrustBadge policy={currentPolicy} />
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
-          <div className="flex items-center gap-2">
-            <SeverityPill tier={tier} />
-            <StatusPill status={problem.acknowledged === "1" ? "acknowledged" : "open"} />
-          </div>
-          <Field label="Host" value={problem.hostName ?? problem.hosts?.[0]?.name ?? "—"} />
-          <Field label="Operational data" value={problem.opdata || "—"} />
-          <Field label="Triggered at" value={ts.toLocaleString()} />
 
-          <div>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Event timeline ({events.length})
-            </p>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            ) : events.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No related events.</p>
-            ) : (
-              <ul className="space-y-2">
-                {events.map((e) => (
-                  <li key={e.eventid} className="flex items-start gap-2 text-xs">
-                    <Zap className="mt-0.5 h-3.5 w-3.5 text-primary-glow" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">
-                        {e.name ?? (e.value === "1" ? "Problem raised" : "Problem recovered")}
-                      </p>
-                      <p className="font-mono text-[10px] text-muted-foreground">
-                        {new Date(parseInt(e.clock, 10) * 1000).toLocaleString()} · ack {e.acknowledged ?? "0"}
-                      </p>
-                      {e.acknowledges && e.acknowledges.length > 0 && (
-                        <ul className="mt-1 space-y-0.5 border-l border-border pl-2">
-                          {e.acknowledges.slice(0, 4).map((a) => (
-                            <li key={a.acknowledgeid} className="text-[10px] text-muted-foreground">
-                              {new Date(parseInt(a.clock, 10) * 1000).toLocaleTimeString()} — {a.message || "(no message)"}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-        <div className="border-t border-border p-4">
+        {/* Action Center — 3 enterprise buttons */}
+        <div className="grid grid-cols-3 gap-2 border-b border-border p-3">
           <button
             onClick={onAck}
             disabled={!canAct || acking || problem.acknowledged === "1"}
-            className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary-glow disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-glow disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {acking ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : problem.acknowledged === "1" ? t("common.acknowledged") : t("common.acknowledge")}
+            {acking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            {problem.acknowledged === "1" ? t("common.acknowledged") : t("common.acknowledge")}
           </button>
+          <button
+            onClick={() => setTab("ai")}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-all",
+              tab === "ai"
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-foreground hover:bg-muted",
+            )}
+          >
+            <Brain className="h-3.5 w-3.5" /> Explain with AI
+          </button>
+          <button
+            onClick={() => setTab("remediate")}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-all",
+              tab === "remediate"
+                ? "border-success bg-success/10 text-success"
+                : "border-border bg-card text-foreground hover:bg-muted",
+            )}
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Auto-Remediate
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-border px-3 pt-2">
+          {(["overview", "ai", "remediate", "audit"] as DrawerTab[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={cn(
+                "rounded-t-md border-b-2 px-3 py-1.5 text-[11px] font-semibold capitalize transition-colors",
+                tab === k
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {k === "audit" ? "Timeline" : k}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {tab === "overview" && (
+            <>
+              <div className="flex items-center gap-2">
+                <SeverityPill tier={tier} />
+                <StatusPill status={problem.acknowledged === "1" ? "acknowledged" : "open"} />
+              </div>
+              <Field label="Host" value={host} />
+              <Field label="Operational data" value={problem.opdata || "—"} />
+              <Field label="Triggered at" value={ts.toLocaleString()} />
+
+              {/* Trust policy quick-setter */}
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  AI Remediation Policy · {host}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {POLICY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.v}
+                      disabled={!isAdmin}
+                      onClick={() => setPolicy(assetKey, host, "server", opt.v)}
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-[10px] font-semibold transition-all",
+                        currentPolicy === opt.v
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:bg-muted",
+                        !isAdmin && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {!isAdmin && (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Admins control trust policies.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Event timeline ({events.length})
+                </p>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : events.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No related events.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {events.map((e) => (
+                      <li key={e.eventid} className="flex items-start gap-2 text-xs">
+                        <Zap className="mt-0.5 h-3.5 w-3.5 text-primary-glow" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium text-foreground">
+                            {e.name ?? (e.value === "1" ? "Problem raised" : "Problem recovered")}
+                          </p>
+                          <p className="font-mono text-[10px] text-muted-foreground">
+                            {new Date(parseInt(e.clock, 10) * 1000).toLocaleString()} · ack {e.acknowledged ?? "0"}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+
+          {tab === "ai" && (
+            <AiExplainPanel
+              eventId={problem.eventid}
+              trigger={problem.name}
+              host={host}
+              severity={tier}
+              opdata={problem.opdata}
+              triggeredAt={ts.toISOString()}
+              actor={user?.email ?? "unknown"}
+            />
+          )}
+
+          {tab === "remediate" && (
+            <AutoRemediatePanel
+              assetKey={assetKey}
+              eventId={problem.eventid}
+              trigger={problem.name}
+              host={host}
+              actor={user?.email ?? "unknown"}
+            />
+          )}
+
+          {tab === "audit" && <IncidentAuditTimeline eventId={problem.eventid} />}
         </div>
       </aside>
     </div>

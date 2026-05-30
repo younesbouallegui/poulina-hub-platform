@@ -1,1 +1,4 @@
 project_id = "sthwjunbanntnnakdkyi"
+
+[functions.incident-ai]
+verify_jwt = false

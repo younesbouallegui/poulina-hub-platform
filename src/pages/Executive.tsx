@@ -19,6 +19,7 @@ import {
 } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 import { AppOpsCenter } from "@/components/executive/AppOpsCenter";
+import { AiOpsCenter } from "@/components/executive/AiOpsCenter";
 import { InfraOpsCenter } from "@/components/executive/InfraOpsCenter";
 
 const SEV_ORDER = ["disaster", "high", "average", "warning", "info"] as const;
@@ -410,6 +411,9 @@ export default function Executive() {
         </div>
         <div className="lg:col-span-4">
           <InfraOpsCenter />
+        </div>
+        <div className="lg:col-span-4">
+          <AiOpsCenter />
         </div>
       </div>
       )}
