@@ -72,6 +72,12 @@ const Incidents = () => {
     setAcking(p.eventid);
     try {
       await acknowledgeEvent(p.eventid, "Acknowledged from Lovable Operations Console");
+      audit.append({
+        actor: user?.email ?? "unknown",
+        kind: "ack",
+        message: `Acknowledged "${p.name}"`,
+        meta: { eventId: p.eventid, host: p.hostName },
+      });
       toast({ title: t("inc.acknowledged") });
       refetch();
       if (selected?.eventid === p.eventid) setSelected({ ...selected, acknowledged: "1" });
