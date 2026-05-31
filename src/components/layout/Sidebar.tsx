@@ -1,17 +1,16 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard,
   AlertTriangle,
   Sparkles,
   Server,
   GaugeCircle,
   Settings,
   ChevronLeft,
+  ChevronDown,
   ShieldCheck,
   X,
   Lock,
-  LineChart,
   Bell,
   Boxes,
   Layers,
@@ -27,6 +26,9 @@ import {
   Network,
   ClipboardList,
   Siren,
+  BookOpen,
+  History,
+  Bot,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
@@ -36,15 +38,15 @@ import { getIncidentsForUser } from "@/data/mockData";
 
 interface NavItem {
   to: string;
-  labelKey: string;
+  label: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: () => string | number | undefined;
   allow: Role[];
-  adminBadge?: boolean;
 }
 
 interface NavSection {
-  titleKey: string;
+  id: string;
+  title: string;
   items: NavItem[];
 }
 
@@ -64,79 +66,89 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     ? getIncidentsForUser(user.assignedServers ?? []).filter((i) => i.status !== "resolved").length
     : 0;
 
-  const sections: NavSection[] = [
+  const sections: NavSection[] = useMemo(() => [
     {
-      titleKey: "nav.section.overview",
+      id: "overview",
+      title: t("nav.section.overview"),
       items: [
-        { to: "/executive", labelKey: "nav.executive", icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/dashboards", labelKey: "nav.dashboards", icon: Grid3x3, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/maps", labelKey: "nav.maps", icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/ai", labelKey: "nav.ai", icon: Sparkles, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/executive", label: "Executive Command Center", icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/dashboards", label: t("nav.dashboards"), icon: Grid3x3, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/maps", label: t("nav.maps"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
     {
-      titleKey: "nav.section.operations",
+      id: "operations",
+      title: t("nav.section.operations"),
       items: [
-        { to: "/alerts", labelKey: "nav.alerts", icon: Bell, allow: ["super_admin", "admin", "operator", "viewer", "auditor"], badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined) },
-        { to: "/incidents", labelKey: "nav.incidents", icon: AlertTriangle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/sla", labelKey: "nav.sla", icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/terminal", labelKey: "nav.terminal", icon: TerminalSquare, allow: ["super_admin", "admin", "operator"] },
+        { to: "/alerts", label: t("nav.alerts"), icon: Bell, allow: ["super_admin", "admin", "operator", "viewer", "auditor"], badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined) },
+        { to: "/incidents", label: t("nav.incidents"), icon: AlertTriangle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/sla", label: t("nav.sla"), icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/terminal", label: t("nav.terminal"), icon: TerminalSquare, allow: ["super_admin", "admin", "operator"] },
       ],
     },
     {
-      titleKey: "nav.section.infrastructure",
+      id: "infrastructure",
+      title: t("nav.section.infrastructure"),
       items: [
-        { to: "/infrastructure", labelKey: "nav.infra.overview", icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/servers", labelKey: "nav.infra.servers", icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/vms", labelKey: "nav.infra.vms", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/containers", labelKey: "nav.infra.containers", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/kubernetes", labelKey: "nav.infra.k8s", icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/networks", labelKey: "nav.infra.networks", icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/storage", labelKey: "nav.infra.storage", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/databases", labelKey: "nav.infra.databases", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/load-balancers", labelKey: "nav.infra.lbs", icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/cloud", labelKey: "nav.infra.cloud", icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/sites", labelKey: "nav.infra.sites", icon: Building2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/topology", labelKey: "nav.infra.topology", icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/capacity", labelKey: "nav.infra.capacity", icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/maintenance", labelKey: "nav.infra.maintenance", icon: ScrollText, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/provisioning", labelKey: "nav.infra.provisioning", icon: Plug, allow: ["super_admin", "admin", "operator"] },
-        { to: "/infrastructure/discovery", labelKey: "nav.infra.discovery", icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
-        { to: "/infrastructure/policies", labelKey: "nav.infra.policies", icon: ShieldCheck, allow: ["super_admin", "admin", "auditor"] },
+        { to: "/infrastructure", label: t("nav.infra.overview"), icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/servers", label: t("nav.infra.servers"), icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/vms", label: t("nav.infra.vms"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/containers", label: t("nav.infra.containers"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/kubernetes", label: t("nav.infra.k8s"), icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/networks", label: t("nav.infra.networks"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/storage", label: t("nav.infra.storage"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/databases", label: t("nav.infra.databases"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/load-balancers", label: t("nav.infra.lbs"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/cloud", label: t("nav.infra.cloud"), icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/sites", label: t("nav.infra.sites"), icon: Building2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/topology", label: t("nav.infra.topology"), icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/capacity", label: t("nav.infra.capacity"), icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/maintenance", label: t("nav.infra.maintenance"), icon: ScrollText, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure/provisioning", label: t("nav.infra.provisioning"), icon: Plug, allow: ["super_admin", "admin", "operator"] },
+        { to: "/infrastructure/discovery", label: t("nav.infra.discovery"), icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
+        { to: "/infrastructure/policies", label: t("nav.infra.policies"), icon: ShieldCheck, allow: ["super_admin", "admin", "auditor"] },
       ],
     },
     {
-      titleKey: "nav.section.cmdb",
+      id: "cmdb",
+      title: "CMDB",
       items: [
-        { to: "/cmdb/assets", labelKey: "nav.cmdb.assets", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/cmdb/services", labelKey: "nav.cmdb.services", icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/cmdb/assets", label: "Asset Registry", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/cmdb/services", label: "Business Services", icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/applications", label: "Applications", icon: AppWindow, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/applications/registry", label: "App Registry", icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
+        { to: "/applications/topology", label: "Service Map", icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/applications/alerts", label: "App Alerting", icon: Siren, allow: ["super_admin", "admin", "operator"] },
       ],
     },
     {
-      titleKey: "nav.section.applications",
+      id: "aiops",
+      title: "AI Operations",
       items: [
-        { to: "/applications", labelKey: "nav.apps.command", icon: AppWindow, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/applications/registry", labelKey: "nav.apps.registry", icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
-        { to: "/applications/topology", labelKey: "nav.apps.topology", icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/applications/alerts", labelKey: "nav.apps.alerts", icon: Siren, allow: ["super_admin", "admin", "operator"] },
+        { to: "/ai", label: "AI Insights", icon: Sparkles, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/aiops/policies", label: "AI Policies", icon: Bot, allow: ["super_admin", "admin", "auditor"] },
+        { to: "/aiops/knowledge", label: "Knowledge Base", icon: BookOpen, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/aiops/history", label: "Automation History", icon: History, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
     {
-      titleKey: "nav.section.governance",
+      id: "governance",
+      title: t("nav.section.governance"),
       items: [
-        { to: "/governance/users", labelKey: "nav.gov.users", icon: UsersIcon, allow: ["super_admin", "admin"] },
-        { to: "/governance/departments", labelKey: "nav.gov.dept", icon: Building2, allow: ["super_admin", "admin"] },
-        { to: "/governance/audit", labelKey: "nav.gov.audit", icon: ScrollText, allow: ["super_admin", "admin", "auditor"] },
+        { to: "/governance/users", label: "Users & Roles", icon: UsersIcon, allow: ["super_admin", "admin"] },
+        { to: "/governance/departments", label: "Departments", icon: Building2, allow: ["super_admin", "admin"] },
+        { to: "/governance/audit", label: "Audit Logs", icon: ScrollText, allow: ["super_admin", "admin", "auditor"] },
       ],
     },
     {
-      titleKey: "nav.section.platform",
+      id: "platform",
+      title: "Settings",
       items: [
-        { to: "/integrations", labelKey: "nav.integrations", icon: Plug, allow: ["super_admin", "admin", "auditor"] },
-        { to: "/settings", labelKey: "nav.settings", icon: Settings, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/integrations", label: t("nav.integrations"), icon: Plug, allow: ["super_admin", "admin", "auditor"] },
+        { to: "/settings", label: t("nav.settings"), icon: Settings, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
-  ];
+  ], [t, openAlertsCount]);
 
   const visibleSections = sections
     .map((s) => ({
@@ -145,17 +157,30 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     }))
     .filter((s) => s.items.length > 0);
 
+  const isActiveRoute = (to: string) =>
+    location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
+
+  // Section auto-expand based on active route
+  const activeSectionId = useMemo(() => {
+    for (const s of visibleSections) {
+      if (s.items.some((i) => isActiveRoute(i.to))) return s.id;
+    }
+    return visibleSections[0]?.id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, visibleSections]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const isOpen = (id: string) => expanded[id] ?? id === activeSectionId;
+  const toggle = (id: string) =>
+    setExpanded((prev) => ({ ...prev, [id]: !isOpen(id) }));
+
   const handleSelect = (to: string) => {
     navigate(to);
     onMobileClose();
   };
 
-  const isActiveRoute = (to: string) =>
-    location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
-
   const content = (isMobile: boolean) => (
     <>
-      {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
         <div className="relative">
           <img src={logo} alt="Poulina AI Hub logo" className="h-9 w-9 rounded-md object-contain" />
@@ -182,67 +207,78 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 space-y-3 overflow-y-auto p-3">
-        {visibleSections.map((section) => (
-          <div key={section.titleKey}>
-            {(!collapsed || isMobile) && (
-              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {t(section.titleKey)}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = isActiveRoute(item.to);
-                const badgeValue = item.badge?.();
-                const adminOnly = item.allow.length === 1 && item.allow[0] === "admin";
-                return (
-                  <button
-                    key={item.to}
-                    onClick={() => handleSelect(item.to)}
-                    className={cn(
-                      "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
-                      "hover:bg-sidebar-accent",
-                      isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground",
-                    )}
-                    title={collapsed && !isMobile ? t(item.labelKey) : undefined}
-                  >
-                    {isActive && (
-                      <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
-                    )}
-                    <Icon
-                      className={cn(
-                        "h-[18px] w-[18px] shrink-0 transition-colors",
-                        isActive
-                          ? "text-primary"
-                          : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
-                      )}
-                    />
-                    {(!collapsed || isMobile) && (
-                      <>
-                        <span className="flex-1 truncate text-left">{t(item.labelKey)}</span>
-                        {badgeValue !== undefined && (
-                          <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
-                            {badgeValue}
-                          </span>
+      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        {visibleSections.map((section) => {
+          const open = isOpen(section.id);
+          const showLabels = !collapsed || isMobile;
+          return (
+            <div key={section.id} className="rounded-lg">
+              {showLabels ? (
+                <button
+                  onClick={() => toggle(section.id)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground"
+                  aria-expanded={open}
+                >
+                  <span>{section.title}</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open ? "rotate-0" : "-rotate-90")} />
+                </button>
+              ) : (
+                <div className="my-2 h-px bg-sidebar-border/50" />
+              )}
+              {(open || !showLabels) && (
+                <div className="mt-0.5 space-y-0.5">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isActiveRoute(item.to);
+                    const badgeValue = item.badge?.();
+                    const adminOnly = item.allow.length === 1 && item.allow[0] === "admin";
+                    return (
+                      <button
+                        key={item.to}
+                        onClick={() => handleSelect(item.to)}
+                        className={cn(
+                          "group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                          "hover:bg-sidebar-accent",
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground",
                         )}
-                        {adminOnly && !hasRole("admin") && (
-                          <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
+                        title={!showLabels ? item.label : undefined}
+                      >
+                        {isActive && (
+                          <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" />
                         )}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+                        <Icon
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0 transition-colors",
+                            isActive
+                              ? "text-primary"
+                              : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
+                          )}
+                        />
+                        {showLabels && (
+                          <>
+                            <span className="flex-1 truncate text-left">{item.label}</span>
+                            {badgeValue !== undefined && (
+                              <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive ring-1 ring-destructive/30">
+                                {badgeValue}
+                              </span>
+                            )}
+                            {adminOnly && !hasRole("admin") && (
+                              <Lock className="h-3 w-3 text-muted-foreground" aria-label={t("nav.adminOnly")} />
+                            )}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
         <div
           className={cn(

@@ -51,6 +51,9 @@ import ApplicationsRegistry from "./pages/applications/Registry";
 import ApplicationsTopology from "./pages/applications/Topology";
 import ApplicationsAlerts from "./pages/applications/Alerts";
 import ApplicationDetail from "./pages/applications/Detail";
+import AIPolicies from "./pages/aiops/Policies";
+import AIKnowledgeBase from "./pages/aiops/KnowledgeBase";
+import AIAutomationHistory from "./pages/aiops/AutomationHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -120,6 +123,16 @@ const App = () => (
                   <Route path="/applications/topology" element={<ApplicationsTopology />} />
                   <Route path="/applications/alerts" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><ApplicationsAlerts /></RoleGuard>} />
                   <Route path="/applications/:id" element={<ApplicationDetail />} />
+                  <Route
+                    path="/aiops/policies"
+                    element={
+                      <RoleGuard allow={["super_admin", "admin", "auditor"]}>
+                        <AIPolicies />
+                      </RoleGuard>
+                    }
+                  />
+                  <Route path="/aiops/knowledge" element={<AIKnowledgeBase />} />
+                  <Route path="/aiops/history" element={<AIAutomationHistory />} />
                   <Route
                     path="/governance/users"
                     element={
