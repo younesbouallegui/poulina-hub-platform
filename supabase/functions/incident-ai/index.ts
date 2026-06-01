@@ -1,10 +1,11 @@
 // Lovable AI Operations Copilot — streaming incident analysis.
-// Provider-abstracted: defaults to Lovable AI Gateway (google/gemini-3-flash-preview).
+// Uses Lovable AI Gateway (free Gemini tier by default).
 
-const corsHeaders = {
+const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface IncidentCtx {
@@ -15,19 +16,24 @@ interface IncidentCtx {
   severity?: string;
   opdata?: string;
   triggeredAt?: string;
-  relatedIncidents?: Array<{ id: string; name: string; resolution?: string; similarity?: number }>;
+  relatedIncidents?: Array<{
+    id: string;
+    name: string;
+    resolution?: string;
+    similarity?: number;
+  }>;
   metrics?: Record<string, string | number>;
   services?: string[];
 }
 
 interface Body {
-  mode: "explain" | "chat" | "remediate";
+  mode?: "explain" | "chat" | "remediate";
   incident?: IncidentCtx;
   messages?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
   model?: string;
 }
 
-const buildSystem = (mode: Body["mode"]) => {
+function buildSystem(mode: NonNullable<Body["mode"]>): string {
   const base =
     "You are AIOps Copilot — a senior SRE assistant embedded in an enterprise operations platform. " +
     "Be precise, structured, and concise. Use markdown with clear ## section headers. " +
@@ -36,49 +42,49 @@ const buildSystem = (mode: Body["mode"]) => {
     return (
       base +
       "\n\nProduce EXACTLY these sections in order:\n" +
-      "## Incident Summary\n(What happened, why, impact scope, affected systems, business impact)\n" +
-      "## Root Cause Analysis\n(Likely root cause, confidence %, related symptoms, historical correlation)\n" +
-      "## Investigation Guide\n(Numbered steps an on-call engineer should run now)\n" +
-      "## Remediation Guide\n(Exact actions — commands or operations — to resolve)\n" +
-      "## Prevention Plan\n(Monitoring, threshold, capacity recommendations)"
+      "## Incident Summary\n## Root Cause Analysis\n## Investigation Guide\n## Remediation Guide\n## Prevention Plan"
     );
   }
   if (mode === "remediate") {
     return (
       base +
       "\n\nProduce a safe REMEDIATION PLAN as ordered steps. " +
-      "For each step include: action, target host, risk level (low/medium/high), reversible (yes/no), " +
-      "and an approval requirement when risk >= medium. End with a one-line confidence estimate."
+      "For each step include: action, target host, risk level, reversible (yes/no), and approval requirement when risk >= medium. " +
+      "End with a one-line confidence estimate."
     );
   }
   return base + "\n\nAnswer the user's operations question grounded in the provided incident context.";
-};
+}
 
-const contextBlock = (i?: IncidentCtx) =>
-  !i
-    ? ""
-    : [
-        "## Incident Context",
-        `- Event ID: ${i.eventId ?? "n/a"}`,
-        `- Trigger: ${i.trigger ?? "n/a"}`,
-        `- Host: ${i.host ?? "n/a"}`,
-        `- Host group: ${i.hostGroup ?? "n/a"}`,
-        `- Severity: ${i.severity ?? "n/a"}`,
-        `- Operational data: ${i.opdata ?? "n/a"}`,
-        `- Triggered at: ${i.triggeredAt ?? "n/a"}`,
-        i.services?.length ? `- Services impacted: ${i.services.join(", ")}` : "",
-        i.metrics ? `- Recent metrics: ${JSON.stringify(i.metrics)}` : "",
-        i.relatedIncidents?.length
-          ? `- Related historical incidents:\n${i.relatedIncidents
-              .map((r) => `  • #${r.id} ${r.name}${r.similarity ? ` (${r.similarity}% similar)` : ""}${r.resolution ? ` → ${r.resolution}` : ""}`)
-              .join("\n")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
+function contextBlock(i?: IncidentCtx): string {
+  if (!i) return "";
+  const lines = [
+    "## Incident Context",
+    `- Event ID: ${i.eventId ?? "n/a"}`,
+    `- Trigger: ${i.trigger ?? "n/a"}`,
+    `- Host: ${i.host ?? "n/a"}`,
+    `- Host group: ${i.hostGroup ?? "n/a"}`,
+    `- Severity: ${i.severity ?? "n/a"}`,
+    `- Operational data: ${i.opdata ?? "n/a"}`,
+    `- Triggered at: ${i.triggeredAt ?? "n/a"}`,
+  ];
+  if (i.services?.length) lines.push(`- Services impacted: ${i.services.join(", ")}`);
+  if (i.metrics) lines.push(`- Recent metrics: ${JSON.stringify(i.metrics)}`);
+  if (i.relatedIncidents?.length) {
+    lines.push("- Related historical incidents:");
+    for (const r of i.relatedIncidents) {
+      lines.push(
+        `  • #${r.id} ${r.name}${r.similarity ? ` (${r.similarity}% similar)` : ""}${r.resolution ? ` → ${r.resolution}` : ""}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -90,7 +96,7 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as Body;
-    const mode = body.mode ?? "explain";
+    const mode: NonNullable<Body["mode"]> = body.mode ?? "explain";
     const model = body.model ?? "google/gemini-3-flash-preview";
 
     const messages: Array<{ role: string; content: string }> = [
@@ -98,17 +104,18 @@ Deno.serve(async (req) => {
     ];
 
     if (mode === "chat") {
-      if (body.incident) messages.push({ role: "system", content: contextBlock(body.incident) });
+      if (body.incident) {
+        messages.push({ role: "system", content: contextBlock(body.incident) });
+      }
       for (const m of body.messages ?? []) messages.push(m);
     } else {
+      const ask =
+        mode === "explain"
+          ? "Analyze this incident and produce the full structured report."
+          : "Produce a safe remediation plan for this incident.";
       messages.push({
         role: "user",
-        content:
-          (mode === "explain"
-            ? "Analyze this incident and produce the full structured report."
-            : "Produce a safe remediation plan for this incident.") +
-          "\n\n" +
-          contextBlock(body.incident),
+        content: `${ask}\n\n${contextBlock(body.incident)}`,
       });
     }
 
@@ -138,7 +145,7 @@ Deno.serve(async (req) => {
       console.error("AI gateway error", upstream.status, txt);
       return new Response(
         JSON.stringify({ error: "AI gateway error", details: txt }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
