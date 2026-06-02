@@ -1,8 +1,9 @@
 // SSE streaming helper for the incident-ai edge function.
 // Robust line-by-line parser, handles CRLF, comments, partial JSON, and [DONE].
 
-const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/incident-ai`;
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
+
+const ENDPOINT = `${SUPABASE_URL}/functions/v1/incident-ai`;
 
 export interface AiStreamInput {
   mode: "explain" | "chat" | "remediate";
@@ -23,12 +24,15 @@ export async function streamIncidentAi(opts: AiStreamInput) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify(payload),
       signal,
     });
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return;
+    }
     onError?.({ status: 0, message: e instanceof Error ? e.message : "Network error" });
     return;
   }
@@ -38,8 +42,12 @@ export async function streamIncidentAi(opts: AiStreamInput) {
     try {
       const j = await response.json();
       if (j?.error) msg = j.error;
+      else if (j?.message) msg = j.message;
     } catch {
       /* noop */
+    }
+    if (response.status === 404) {
+      msg = "AI streaming service is not deployed yet. The client is fixed now, but the backend function must finish deploying.";
     }
     onError?.({ status: response.status, message: msg });
     return;
@@ -75,6 +83,25 @@ export async function streamIncidentAi(opts: AiStreamInput) {
         // partial chunk — put back
         buffer = line + "\n" + buffer;
         break;
+      }
+    }
+  }
+
+  const trailing = buffer.trim();
+  if (trailing) {
+    for (const rawLine of trailing.split("\n")) {
+      let line = rawLine;
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (!line || line.startsWith(":")) continue;
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice(6).trim();
+      if (json === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(json);
+        const delta = parsed?.choices?.[0]?.delta?.content as string | undefined;
+        if (delta) onDelta(delta);
+      } catch {
+        /* ignore incomplete trailing frame */
       }
     }
   }
