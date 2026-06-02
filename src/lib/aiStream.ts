@@ -24,7 +24,7 @@ export async function streamIncidentAi(opts: AiStreamInput) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify(payload),
       signal,
