@@ -235,7 +235,7 @@ async function handleWrite(
   input: { method?: unknown; params?: unknown },
   caller: CallerContext,
   credentials: { url: string; token: string },
-  admin: ReturnType<typeof createClient>,
+  admin: any,
 ) {
   const method = typeof input.method === "string" ? input.method.trim() : "";
   if (!method) return json({ ok: false, code: "invalid_method", error: "method required" }, 400);
@@ -252,7 +252,7 @@ async function handleWrite(
       method,
       params: input.params ?? {},
     });
-    await admin.from("zabbix_audit_log").insert({
+    await (admin.from("zabbix_audit_log") as any).insert({
       user_id: caller.userId, action: "write", method,
       params: input.params ?? {}, result: "ok",
     }).then(() => {}, () => {});
@@ -261,7 +261,7 @@ async function handleWrite(
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     const kind = rpcErrorKind(detail);
-    await admin.from("zabbix_audit_log").insert({
+    await (admin.from("zabbix_audit_log") as any).insert({
       user_id: caller.userId, action: "write", method,
       params: input.params ?? {}, result: `error: ${detail}`.slice(0, 500),
     }).then(() => {}, () => {});
