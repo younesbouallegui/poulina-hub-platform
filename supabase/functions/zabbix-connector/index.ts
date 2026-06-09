@@ -441,12 +441,12 @@ Deno.serve(async (req) => {
     const { action, providerId, method, params } = body;
     if (!action) return json({ error: "Missing action" }, 400);
 
-    if (!["test", "sync", "query", "write", "call"].includes(action)) {
+    if (!["test", "sync", "query", "write", "ai_chat", "call"].includes(action)) {
       return json({ error: `Unknown action: ${action}` }, 400);
     }
 
-    // Read-only `query` is open to any auth user. Everything else requires admin.
-    if (action !== "query" && !isAdmin) {
+    // Read-only `query` and `ai_chat` are open to any authenticated user. Everything else requires admin.
+    if (!["query", "ai_chat"].includes(action) && !isAdmin) {
       return json({ error: "Forbidden — admin only" }, 403);
     }
 
@@ -464,6 +464,8 @@ Deno.serve(async (req) => {
     switch (action) {
       case "query":
         return await handleQuery({ method, params }, caller, { url, token });
+      case "ai_chat":
+        return await handleAiChat(params as AiChatInput, caller);
       case "write":
         return await handleWrite({ method, params }, caller, { url, token }, admin);
       case "test":
