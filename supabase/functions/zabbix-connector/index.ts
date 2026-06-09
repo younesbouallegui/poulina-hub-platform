@@ -450,28 +450,33 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden — admin only" }, 403);
     }
 
-    const url = Deno.env.get("ZABBIX_URL");
-    const token = Deno.env.get("ZABBIX_API_TOKEN");
-    if (!url || !token) {
-      return json(
-        { error: "Zabbix credentials not configured. Add ZABBIX_URL and ZABBIX_API_TOKEN secrets." },
-        400,
-      );
-    }
-
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     switch (action) {
       case "query":
-        return await handleQuery({ method, params }, caller, { url, token });
-      case "ai_chat":
-        return await handleAiChat(params as AiChatInput, caller);
       case "write":
-        return await handleWrite({ method, params }, caller, { url, token }, admin);
       case "test":
       case "sync":
-      case "call":
+      case "call": {
+        const url = Deno.env.get("ZABBIX_URL");
+        const token = Deno.env.get("ZABBIX_API_TOKEN");
+        if (!url || !token) {
+          return json(
+            { error: "Zabbix credentials not configured. Add ZABBIX_URL and ZABBIX_API_TOKEN secrets." },
+            400,
+          );
+        }
+
+        if (action === "query") {
+          return await handleQuery({ method, params }, caller, { url, token });
+        }
+        if (action === "write") {
+          return await handleWrite({ method, params }, caller, { url, token }, admin);
+        }
         break;
+      }
+      case "ai_chat":
+        return await handleAiChat(params as AiChatInput, caller);
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }
