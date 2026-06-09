@@ -1,7 +1,11 @@
 // SSE streaming helper for the deployed backend connector.
 // Robust line-by-line parser, handles CRLF, comments, partial JSON, and [DONE].
 
-import { supabase } from "@/integrations/supabase/client";
+import {
+  SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_URL,
+  supabase,
+} from "@/integrations/supabase/client";
 
 export interface AiStreamInput {
   mode: "explain" | "chat" | "remediate";
@@ -26,12 +30,12 @@ export async function streamIncidentAi(opts: AiStreamInput) {
 
   let response: Response;
   try {
-    response = await fetch(`${supabase.functions.url}/zabbix-connector`, {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/zabbix-connector`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
-        apikey: supabase.supabaseKey,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
       },
       body: JSON.stringify({ action: "ai_chat", params: payload }),
       signal,
