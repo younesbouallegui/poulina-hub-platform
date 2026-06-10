@@ -202,13 +202,12 @@ export const ChatInterface = ({
       messages: isFirstWithIncident ? undefined : history,
       signal: controller.signal,
       onDelta: (delta) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: m.content + delta } : m,
-          ),
-        );
+        const prev = pendingRef.current.get(assistantId) ?? "";
+        pendingRef.current.set(assistantId, prev + delta);
+        scheduleDrain();
       },
       onDone: () => {
+        flushPending(assistantId);
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
         );
@@ -224,6 +223,7 @@ export const ChatInterface = ({
         }
       },
       onError: (err) => {
+        flushPending(assistantId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
@@ -242,6 +242,7 @@ export const ChatInterface = ({
       },
     });
   };
+
 
   // Auto-send on deep-link
   useEffect(() => {
