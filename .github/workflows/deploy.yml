@@ -43,7 +43,7 @@ jobs:
       - name: Verify deployed edge functions are reachable
         if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
         run: |
-          for fn in zabbix-connector incident-ai; do
+          for fn in zabbix-connector incident-ai ask-stream; do
             for i in $(seq 1 30); do
               status=$(curl -s -o /tmp/${fn}.json -w "%{http_code}" -X OPTIONS https://sthwjunbanntnnakdkyi.supabase.co/functions/v1/${fn})
               if [ "$status" = "200" ] || [ "$status" = "204" ]; then
