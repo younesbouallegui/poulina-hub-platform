@@ -191,8 +191,8 @@ export function useZabbixHosts() {
           },
         });
       } catch (e) {
-        if (String(e instanceof Error ? e.message : e).includes("Unknown action: query")) return syncedHosts();
-        throw e;
+        console.warn("[zabbix] hosts live query failed, using synced data:", e);
+        return syncedHosts();
       }
     },
     refetchInterval: 60_000,
@@ -218,8 +218,8 @@ export function useZabbixProblems() {
           },
         });
       } catch (e) {
-        if (String(e instanceof Error ? e.message : e).includes("Unknown action: query")) return syncedProblems();
-        throw e;
+        console.warn("[zabbix] problems live query failed, using synced data:", e);
+        return syncedProblems();
       }
       // Hydrate host names via trigger.get
       const triggerIds = Array.from(new Set(problems.map((p) => p.objectid).filter(Boolean)));
