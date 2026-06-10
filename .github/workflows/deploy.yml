@@ -38,6 +38,7 @@ jobs:
         run: |
           supabase functions deploy zabbix-connector --project-ref sthwjunbanntnnakdkyi --no-verify-jwt
           supabase functions deploy incident-ai --project-ref sthwjunbanntnnakdkyi --no-verify-jwt
+          supabase functions deploy ask-stream --project-ref sthwjunbanntnnakdkyi --no-verify-jwt
 
       - name: Verify deployed edge functions are reachable
         if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
