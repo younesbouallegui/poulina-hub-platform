@@ -22,7 +22,7 @@ const Departments = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("departments").select("*").order("name");
+    const { data } = await (supabase as any).from("departments").select("*").order("name");
     setItems(data ?? []);
   };
 
@@ -34,7 +34,7 @@ const Departments = () => {
     e.preventDefault();
     if (!name.trim() || !code.trim()) return;
     setSubmitting(true);
-    const { error } = await supabase.from("departments").insert({ name: name.trim(), code: code.trim().toUpperCase(), description: description.trim() || null });
+    const { error } = await (supabase as any).from("departments").insert({ name: name.trim(), code: code.trim().toUpperCase(), description: description.trim() || null });
     setSubmitting(false);
     if (error) {
       toast({ title: t("gov.dept.createFailed"), description: error.message, variant: "destructive" });
@@ -46,7 +46,7 @@ const Departments = () => {
   };
 
   const onDelete = async (id: string) => {
-    const { error } = await supabase.from("departments").delete().eq("id", id);
+    const { error } = await (supabase as any).from("departments").delete().eq("id", id);
     if (error) {
       toast({ title: t("gov.dept.deleteFailed"), description: error.message, variant: "destructive" });
       return;

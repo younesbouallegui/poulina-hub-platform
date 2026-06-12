@@ -76,7 +76,7 @@ export default function IntegrationCenter() {
 
   const load = async () => {
     const [{ data: provs }, { data: l }] = await Promise.all([
-      supabase.from("monitoring_providers").select("*").order("created_at"),
+      (supabase as any).from("monitoring_providers").select("*").order("created_at"),
       supabase
         .from("monitoring_sync_logs")
         .select("*")
