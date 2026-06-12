@@ -11,8 +11,8 @@ import type { Database as DB } from "@/integrations/supabase/types";
 import { useZabbixUsers, useZabbixUserGroups, useZabbixRoles, type ZUser } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 
-type Profile = DB["public"]["Tables"]["profiles"]["Row"];
-type RoleRow = DB["public"]["Tables"]["user_roles"]["Row"];
+type Profile = any;
+type RoleRow = any;
 type Role = "admin" | "operator" | "auditor" | "viewer";
 const ALL_ROLES: Role[] = ["admin", "operator", "auditor", "viewer"];
 
@@ -41,8 +41,8 @@ const Users = () => {
 
   const load = async () => {
     const [p, r] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("user_roles").select("*"),
+      (supabase as any).from("profiles").select("*").order("created_at", { ascending: false }),
+      (supabase as any).from("user_roles").select("*"),
     ]);
     setProfiles(p.data ?? []);
     setRoles(r.data ?? []);
@@ -60,10 +60,10 @@ const Users = () => {
     setSavingId(userId);
     const has = rolesByUser[userId]?.includes(role);
     if (has) {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+      const { error } = await (supabase as any).from("user_roles").delete().eq("user_id", userId).eq("role", role);
       if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
     } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+      const { error } = await (supabase as any).from("user_roles").insert({ user_id: userId, role });
       if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
     }
     await load();

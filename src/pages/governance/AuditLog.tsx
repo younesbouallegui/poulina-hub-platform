@@ -5,7 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { ScrollText, Loader2, Search, Download } from "lucide-react";
 import type { Database as DB } from "@/integrations/supabase/types";
 
-type Audit = DB["public"]["Tables"]["audit_log"]["Row"];
+type Audit = any;
 
 const ACTION_BADGE: Record<string, string> = {
   INSERT: "bg-success/15 text-success ring-success/30",
