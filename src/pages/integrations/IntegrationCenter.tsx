@@ -17,8 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { Database as DB } from "@/integrations/supabase/types";
 
-type Provider = DB["public"]["Tables"]["monitoring_providers"]["Row"];
-type SyncLog = DB["public"]["Tables"]["monitoring_sync_logs"]["Row"];
+type Provider = any;
+type SyncLog = any;
 
 const PROVIDER_CATALOG: Array<{
   kind: Provider["kind"];

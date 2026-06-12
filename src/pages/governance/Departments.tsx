@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Building2, Loader2, Plus, Trash2 } from "lucide-react";
 import type { Database as DB } from "@/integrations/supabase/types";
 
-type Department = DB["public"]["Tables"]["departments"]["Row"];
+type Department = any;
 
 const Departments = () => {
   const { t } = useI18n();

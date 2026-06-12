@@ -11,8 +11,8 @@ import type { Database as DB } from "@/integrations/supabase/types";
 import { useZabbixUsers, useZabbixUserGroups, useZabbixRoles, type ZUser } from "@/lib/zabbix";
 import { cn } from "@/lib/utils";
 
-type Profile = DB["public"]["Tables"]["profiles"]["Row"];
-type RoleRow = DB["public"]["Tables"]["user_roles"]["Row"];
+type Profile = any;
+type RoleRow = any;
 type Role = "admin" | "operator" | "auditor" | "viewer";
 const ALL_ROLES: Role[] = ["admin", "operator", "auditor", "viewer"];
 
