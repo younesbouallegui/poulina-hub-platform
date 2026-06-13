@@ -23,7 +23,7 @@ const AuditLog = () => {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("audit_log")
         .select("*")
         .order("created_at", { ascending: false })

@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const loadRoles = useCallback(async (sb: SbUser): Promise<User> => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("user_roles")
       .select("role")
       .eq("user_id", sb.id);
