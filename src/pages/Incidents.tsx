@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Search, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { IncidentDrawer } from "@/components/incidents/IncidentDrawer";
 import {
-  acknowledgeEvent,
   getProblems,
   getTriggerHosts,
   type ZabbixProblem,
