@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
+// useToast no longer needed at this level — drawer owns ack feedback
 import { cn } from "@/lib/utils";
 import { IncidentDrawer } from "@/components/incidents/IncidentDrawer";
 import {
