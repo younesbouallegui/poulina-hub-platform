@@ -51,7 +51,8 @@ const Incidents = () => {
   const [severityFilter, setSeverityFilter] = useState<ZabbixSeverity | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "ack">("all");
   const [query, setQuery] = useState("");
-  const [acking, setAcking] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Row | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async (initial = false) => {
