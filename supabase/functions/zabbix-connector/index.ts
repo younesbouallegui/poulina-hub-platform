@@ -452,7 +452,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const url = Deno.env.get("ZABBIX_URL");
-    const token = Deno.env.get("ZABBIX_API_TOKEN");
+    const token = Deno.env.get("ZABBIX_API_TOKEN") ?? Deno.env.get("ZABBIX_TOKEN");
 
     switch (action) {
       case "query":
