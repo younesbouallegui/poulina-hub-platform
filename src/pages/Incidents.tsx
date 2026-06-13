@@ -245,7 +245,8 @@ const Incidents = () => {
                 return (
                   <li
                     key={problem.eventid}
-                    className="grid grid-cols-[110px_180px_1fr_120px_120px_120px] items-center gap-2 px-4 py-3 text-sm"
+                    onClick={() => openIncident({ problem, hostName })}
+                    className="grid cursor-pointer grid-cols-[110px_180px_1fr_120px_120px_120px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/40"
                   >
                     <span
                       className={cn(
@@ -277,16 +278,13 @@ const Incidents = () => {
                     </span>
                     <div className="flex justify-end">
                       <button
-                        disabled={isAck || acking === problem.eventid}
-                        onClick={() => handleAck(problem)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-40"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openIncident({ problem, hostName });
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-muted"
                       >
-                        {acking === problem.eventid ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-3 w-3" />
-                        )}
-                        Acknowledge
+                        Open
                       </button>
                     </div>
                   </li>
@@ -296,6 +294,14 @@ const Incidents = () => {
           </div>
         )}
       </div>
+
+      <IncidentDrawer
+        problem={selected?.problem ?? null}
+        hostName={selected?.hostName ?? "—"}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        onAcknowledged={() => fetchData(false)}
+      />
     </div>
   );
 };
