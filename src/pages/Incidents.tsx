@@ -41,7 +41,6 @@ interface Row {
 }
 
 const Incidents = () => {
-  const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
