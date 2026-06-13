@@ -114,7 +114,7 @@ export async function zabbixQuery<T = unknown>(args: QueryArgs): Promise<T> {
 }
 
 async function syncedHosts(): Promise<ZHost[]> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("monitoring_hosts")
     .select("id, external_id, name, hostname, ip_address, available, status, tags, raw")
     .order("name", { ascending: true });
@@ -136,7 +136,7 @@ async function syncedHosts(): Promise<ZHost[]> {
 }
 
 async function syncedProblems(): Promise<ZProblem[]> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("monitoring_alerts")
     .select("id, external_id, host_id, severity, status, title, description, triggered_at, raw, monitoring_hosts(external_id, name, hostname)")
     .in("status", ["open", "acknowledged", "assigned", "escalated"])

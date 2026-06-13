@@ -77,7 +77,7 @@ export default function IntegrationCenter() {
   const load = async () => {
     const [{ data: provs }, { data: l }] = await Promise.all([
       (supabase as any).from("monitoring_providers").select("*").order("created_at"),
-      supabase
+      (supabase as any)
         .from("monitoring_sync_logs")
         .select("*")
         .order("started_at", { ascending: false })
@@ -108,7 +108,7 @@ export default function IntegrationCenter() {
   }, []);
 
   const ensureZabbixProvider = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("monitoring_providers")
       .insert({
         kind: "zabbix",
