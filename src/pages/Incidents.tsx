@@ -126,22 +126,11 @@ const Incidents = () => {
     return c;
   }, [rows]);
 
-  const handleAck = async (problem: ZabbixProblem) => {
-    setAcking(problem.eventid);
-    try {
-      await acknowledgeEvent(problem.eventid);
-      toast({ title: "Acknowledged", description: `Event #${problem.eventid}` });
-      await fetchData(false);
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Acknowledge failed",
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setAcking(null);
-    }
+  const openIncident = (row: Row) => {
+    setSelected(row);
+    setDrawerOpen(true);
   };
+
 
   return (
     <div className="flex min-h-full flex-col">
