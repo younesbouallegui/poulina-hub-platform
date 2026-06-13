@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Search, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
+// useToast no longer needed at this level — drawer owns ack feedback
 import { cn } from "@/lib/utils";
+import { IncidentDrawer } from "@/components/incidents/IncidentDrawer";
 import {
-  acknowledgeEvent,
   getProblems,
   getTriggerHosts,
   type ZabbixProblem,
@@ -41,7 +41,6 @@ interface Row {
 }
 
 const Incidents = () => {
-  const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,7 +50,8 @@ const Incidents = () => {
   const [severityFilter, setSeverityFilter] = useState<ZabbixSeverity | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "ack">("all");
   const [query, setQuery] = useState("");
-  const [acking, setAcking] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Row | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async (initial = false) => {
@@ -125,22 +125,11 @@ const Incidents = () => {
     return c;
   }, [rows]);
 
-  const handleAck = async (problem: ZabbixProblem) => {
-    setAcking(problem.eventid);
-    try {
-      await acknowledgeEvent(problem.eventid);
-      toast({ title: "Acknowledged", description: `Event #${problem.eventid}` });
-      await fetchData(false);
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Acknowledge failed",
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setAcking(null);
-    }
+  const openIncident = (row: Row) => {
+    setSelected(row);
+    setDrawerOpen(true);
   };
+
 
   return (
     <div className="flex min-h-full flex-col">
@@ -255,7 +244,8 @@ const Incidents = () => {
                 return (
                   <li
                     key={problem.eventid}
-                    className="grid grid-cols-[110px_180px_1fr_120px_120px_120px] items-center gap-2 px-4 py-3 text-sm"
+                    onClick={() => openIncident({ problem, hostName })}
+                    className="grid cursor-pointer grid-cols-[110px_180px_1fr_120px_120px_120px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/40"
                   >
                     <span
                       className={cn(
@@ -287,16 +277,13 @@ const Incidents = () => {
                     </span>
                     <div className="flex justify-end">
                       <button
-                        disabled={isAck || acking === problem.eventid}
-                        onClick={() => handleAck(problem)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-40"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openIncident({ problem, hostName });
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-muted"
                       >
-                        {acking === problem.eventid ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-3 w-3" />
-                        )}
-                        Acknowledge
+                        Open
                       </button>
                     </div>
                   </li>
@@ -306,6 +293,14 @@ const Incidents = () => {
           </div>
         )}
       </div>
+
+      <IncidentDrawer
+        problem={selected?.problem ?? null}
+        hostName={selected?.hostName ?? "—"}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        onAcknowledged={() => fetchData(false)}
+      />
     </div>
   );
 };
