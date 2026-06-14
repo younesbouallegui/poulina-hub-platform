@@ -102,7 +102,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       title: "AI Operations",
       items: [
         { to: "/ai", label: "AI Insights", icon: Sparkles, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/aiops/policies", label: "AI Policies", icon: Bot, allow: ["super_admin", "admin", "auditor"] },
+        { to: "/aiops/policies", label: "AI Policies", icon: Bot, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/aiops/knowledge", label: "Knowledge Base", icon: BookOpen, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/aiops/history", label: "Automation History", icon: History, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
