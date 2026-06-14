@@ -123,14 +123,7 @@ const App = () => (
                   <Route path="/applications/topology" element={<ApplicationsTopology />} />
                   <Route path="/applications/alerts" element={<RoleGuard allow={["super_admin", "admin", "operator"]}><ApplicationsAlerts /></RoleGuard>} />
                   <Route path="/applications/:id" element={<ApplicationDetail />} />
-                  <Route
-                    path="/aiops/policies"
-                    element={
-                      <RoleGuard allow={["super_admin", "admin", "auditor"]}>
-                        <AIPolicies />
-                      </RoleGuard>
-                    }
-                  />
+                  <Route path="/aiops/policies" element={<AIPolicies />} />
                   <Route path="/aiops/knowledge" element={<AIKnowledgeBase />} />
                   <Route path="/aiops/history" element={<AIAutomationHistory />} />
                   <Route
