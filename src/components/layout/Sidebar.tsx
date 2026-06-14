@@ -69,44 +69,23 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
   const sections: NavSection[] = useMemo(() => [
     {
       id: "overview",
-      title: t("nav.section.overview"),
+      title: "Overview",
       items: [
         { to: "/executive", label: "Executive Command Center", icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/dashboards", label: t("nav.dashboards"), icon: Grid3x3, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/maps", label: t("nav.maps"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/maps", label: "Global Map", icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/ai", label: "AI Insights", icon: Sparkles, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
     {
       id: "operations",
-      title: t("nav.section.operations"),
+      title: "Operations",
       items: [
-        { to: "/alerts", label: t("nav.alerts"), icon: Bell, allow: ["super_admin", "admin", "operator", "viewer", "auditor"], badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined) },
+        { to: "/alerts", label: "Alert Hub", icon: Bell, allow: ["super_admin", "admin", "operator", "viewer", "auditor"], badge: () => (openAlertsCount > 0 ? openAlertsCount : undefined) },
         { to: "/incidents", label: t("nav.incidents"), icon: AlertTriangle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/sla", label: t("nav.sla"), icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/infrastructure", label: "Infrastructure", icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/sla", label: "SLA & Reports", icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/terminal", label: t("nav.terminal"), icon: TerminalSquare, allow: ["super_admin", "admin", "operator"] },
-      ],
-    },
-    {
-      id: "infrastructure",
-      title: t("nav.section.infrastructure"),
-      items: [
-        { to: "/infrastructure", label: t("nav.infra.overview"), icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/servers", label: t("nav.infra.servers"), icon: Server, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/vms", label: t("nav.infra.vms"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/containers", label: t("nav.infra.containers"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/kubernetes", label: t("nav.infra.k8s"), icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/networks", label: t("nav.infra.networks"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/storage", label: t("nav.infra.storage"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/databases", label: t("nav.infra.databases"), icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/load-balancers", label: t("nav.infra.lbs"), icon: MapIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/cloud", label: t("nav.infra.cloud"), icon: Globe2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/sites", label: t("nav.infra.sites"), icon: Building2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/topology", label: t("nav.infra.topology"), icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/capacity", label: t("nav.infra.capacity"), icon: GaugeCircle, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/maintenance", label: t("nav.infra.maintenance"), icon: ScrollText, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/infrastructure/provisioning", label: t("nav.infra.provisioning"), icon: Plug, allow: ["super_admin", "admin", "operator"] },
-        { to: "/infrastructure/discovery", label: t("nav.infra.discovery"), icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
-        { to: "/infrastructure/policies", label: t("nav.infra.policies"), icon: ShieldCheck, allow: ["super_admin", "admin", "auditor"] },
       ],
     },
     {
@@ -116,9 +95,6 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
         { to: "/cmdb/assets", label: "Asset Registry", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/cmdb/services", label: "Business Services", icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/applications", label: "Applications", icon: AppWindow, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/applications/registry", label: "App Registry", icon: ClipboardList, allow: ["super_admin", "admin", "operator"] },
-        { to: "/applications/topology", label: "Service Map", icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/applications/alerts", label: "App Alerting", icon: Siren, allow: ["super_admin", "admin", "operator"] },
       ],
     },
     {
@@ -133,7 +109,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     },
     {
       id: "governance",
-      title: t("nav.section.governance"),
+      title: "Governance",
       items: [
         { to: "/governance/users", label: "Users & Roles", icon: UsersIcon, allow: ["super_admin", "admin"] },
         { to: "/governance/departments", label: "Departments", icon: Building2, allow: ["super_admin", "admin"] },
@@ -145,7 +121,7 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       title: "Settings",
       items: [
         { to: "/integrations", label: t("nav.integrations"), icon: Plug, allow: ["super_admin", "admin", "auditor"] },
-        { to: "/settings", label: t("nav.settings"), icon: Settings, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/settings", label: "System Settings", icon: Settings, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
   ], [t, openAlertsCount]);
