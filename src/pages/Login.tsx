@@ -1,21 +1,21 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, ShieldCheck, User as UserIcon } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 const schema = z.object({
-  email: z.string().trim().email("Please enter a valid email").max(255),
-  password: z.string().min(6, "Password must be at least 6 characters").max(128),
+  username: z.string().trim().min(1, "Enter your Zabbix username").max(128),
+  password: z.string().min(1, "Enter your Zabbix password").max(128),
 });
 
 const Login = () => {
-  const { isAuthenticated, login, resetPassword } = useAuth();
+  const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPwd, setShowPwd] = useState(false);
@@ -25,35 +25,21 @@ const Login = () => {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const parsed = schema.safeParse({ email, password });
+    const parsed = schema.safeParse({ username, password });
     if (!parsed.success) {
       toast({ title: "Invalid input", description: parsed.error.issues[0].message, variant: "destructive" });
       return;
     }
     setSubmitting(true);
     try {
-      await login(parsed.data.email, parsed.data.password, remember);
-      toast({ title: "Welcome back", description: "Redirecting…" });
+      await login(parsed.data.username, parsed.data.password, remember);
+      toast({ title: "Welcome back", description: "Signed in via Zabbix" });
       navigate("/", { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Please try again.";
       toast({ title: "Sign-in failed", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const onForgot = async () => {
-    if (!email) {
-      toast({ title: "Enter your email first", description: "Your administrator will receive a reset request.", variant: "destructive" });
-      return;
-    }
-    try {
-      await resetPassword(email);
-      toast({ title: "Check your inbox", description: "Password reset email sent." });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not send reset email.";
-      toast({ title: "Reset failed", description: msg, variant: "destructive" });
     }
   };
 
@@ -70,35 +56,30 @@ const Login = () => {
             <img src={logo} alt="Poulina AI Hub logo" className="h-9 w-9 object-contain" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Poulina AI Hub</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">Corporate Operational OS · Enterprise SSO</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">Sign in with your Zabbix account</p>
         </div>
 
         <form onSubmit={onSubmit} className="glass-strong rounded-2xl p-6 sm:p-8" noValidate>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">
-              Sign in to your workspace
-            </h2>
-          </div>
+          <h2 className="text-lg font-semibold text-foreground">Sign in to your workspace</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Access is admin-controlled. Contact your administrator if you don't have an account.
+            Authentication is delegated to Zabbix. Use the same credentials you use for Zabbix.
           </p>
 
           <div className="mt-6 space-y-4">
-
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-foreground">Email</label>
+              <label htmlFor="username" className="mb-1.5 block text-xs font-medium text-foreground">Zabbix username</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g. Admin"
                   className="h-11 w-full rounded-lg border border-input bg-background px-3 pl-9 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
                   required
-                  maxLength={255}
+                  maxLength={128}
                 />
               </div>
             </div>
@@ -139,13 +120,9 @@ const Login = () => {
                 />
                 Remember me
               </label>
-              <button
-                type="button"
-                onClick={onForgot}
-                className="text-xs font-medium text-primary transition-colors hover:text-primary-glow hover:underline"
-              >
-                Forgot password?
-              </button>
+              <span className="text-[11px] text-muted-foreground">
+                Forgot password? Contact your Zabbix administrator.
+              </span>
             </div>
 
             <button
@@ -154,14 +131,14 @@ const Login = () => {
               className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-glow transition-all hover:bg-primary-glow active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {submitting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Signing in…</>
+                <><Loader2 className="h-4 w-4 animate-spin" />Authenticating with Zabbix…</>
               ) : "Sign in"}
             </button>
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-success" />
-            Audit trail enabled · RBAC enforced
+            Zabbix-backed identity · audit trail enabled · RBAC enforced
           </div>
         </form>
 
