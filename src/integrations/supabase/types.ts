@@ -14,16 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      identity_audit: {
+        Row: {
+          action: string
+          actor_auth_user_id: string | null
+          actor_username: string | null
+          actor_zabbix_userid: string | null
+          after: Json | null
+          before: Json | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          source: string | null
+          target_username: string | null
+          target_zabbix_userid: string | null
+        }
+        Insert: {
+          action: string
+          actor_auth_user_id?: string | null
+          actor_username?: string | null
+          actor_zabbix_userid?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          target_username?: string | null
+          target_zabbix_userid?: string | null
+        }
+        Update: {
+          action?: string
+          actor_auth_user_id?: string | null
+          actor_username?: string | null
+          actor_zabbix_userid?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          target_username?: string | null
+          target_zabbix_userid?: string | null
+        }
+        Relationships: []
+      }
+      zbx_role_map: {
+        Row: {
+          platform_role: Database["public"]["Enums"]["app_role"]
+          role_type: number | null
+          roleid: string | null
+        }
+        Insert: {
+          platform_role: Database["public"]["Enums"]["app_role"]
+          role_type?: number | null
+          roleid?: string | null
+        }
+        Update: {
+          platform_role?: Database["public"]["Enums"]["app_role"]
+          role_type?: number | null
+          roleid?: string | null
+        }
+        Relationships: []
+      }
+      zbx_roles: {
+        Row: {
+          last_synced_at: string
+          name: string
+          readonly: number | null
+          roleid: string
+          type: number
+        }
+        Insert: {
+          last_synced_at?: string
+          name: string
+          readonly?: number | null
+          roleid: string
+          type: number
+        }
+        Update: {
+          last_synced_at?: string
+          name?: string
+          readonly?: number | null
+          roleid?: string
+          type?: number
+        }
+        Relationships: []
+      }
+      zbx_user_group_members: {
+        Row: {
+          usrgrpid: string
+          zabbix_userid: string
+        }
+        Insert: {
+          usrgrpid: string
+          zabbix_userid: string
+        }
+        Update: {
+          usrgrpid?: string
+          zabbix_userid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zbx_user_group_members_usrgrpid_fkey"
+            columns: ["usrgrpid"]
+            isOneToOne: false
+            referencedRelation: "zbx_user_groups"
+            referencedColumns: ["usrgrpid"]
+          },
+          {
+            foreignKeyName: "zbx_user_group_members_zabbix_userid_fkey"
+            columns: ["zabbix_userid"]
+            isOneToOne: false
+            referencedRelation: "zbx_users"
+            referencedColumns: ["zabbix_userid"]
+          },
+        ]
+      }
+      zbx_user_groups: {
+        Row: {
+          gui_access: number | null
+          last_synced_at: string
+          name: string
+          users_status: number | null
+          usrgrpid: string
+        }
+        Insert: {
+          gui_access?: number | null
+          last_synced_at?: string
+          name: string
+          users_status?: number | null
+          usrgrpid: string
+        }
+        Update: {
+          gui_access?: number | null
+          last_synced_at?: string
+          name?: string
+          users_status?: number | null
+          usrgrpid?: string
+        }
+        Relationships: []
+      }
+      zbx_users: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          email: string | null
+          last_synced_at: string
+          name: string | null
+          roleid: string | null
+          status: number | null
+          surname: string | null
+          type: number | null
+          updated_at: string
+          username: string
+          zabbix_userid: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          email?: string | null
+          last_synced_at?: string
+          name?: string | null
+          roleid?: string | null
+          status?: number | null
+          surname?: string | null
+          type?: number | null
+          updated_at?: string
+          username: string
+          zabbix_userid: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          email?: string | null
+          last_synced_at?: string
+          name?: string | null
+          roleid?: string | null
+          status?: number | null
+          surname?: string | null
+          type?: number | null
+          updated_at?: string
+          username?: string
+          zabbix_userid?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      current_user_platform_roles: {
+        Args: never
+        Returns: {
+          role: Database["public"]["Enums"]["app_role"]
+          username: string
+          zabbix_userid: string
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin" | "admin" | "operator" | "viewer" | "auditor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +349,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["super_admin", "admin", "operator", "viewer", "auditor"],
+    },
   },
 } as const
