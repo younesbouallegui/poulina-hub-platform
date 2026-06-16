@@ -179,9 +179,13 @@ async function getCallerRoles(authHeader: string) {
   const { data, error } = await sb.auth.getClaims(token);
   if (error || !data?.claims) return { ok: false as const };
   const userId = data.claims.sub;
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
-  return { ok: true as const, userId, roles: (roles ?? []).map((r) => r.role as string) };
+  // Roles are derived from Zabbix mirror tables via current_user_platform_roles().
+  // Call it through the user-scoped client so auth.uid() resolves correctly.
+  const { data: rpcRoles } = await sb.rpc("current_user_platform_roles");
+  const roles = Array.from(
+    new Set(((rpcRoles ?? []) as Array<{ role: string }>).map((r) => r.role)),
+  );
+  return { ok: true as const, userId, roles };
 }
 
 async function handleQuery(
