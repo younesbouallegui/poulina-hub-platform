@@ -59,6 +59,275 @@ export type Database = {
         }
         Relationships: []
       }
+      monitoring_alerts: {
+        Row: {
+          created_at: string
+          description: string | null
+          external_id: string
+          host_id: string | null
+          id: string
+          provider_id: string | null
+          raw: Json | null
+          severity: string | null
+          status: string | null
+          title: string | null
+          triggered_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          external_id: string
+          host_id?: string | null
+          id?: string
+          provider_id?: string | null
+          raw?: Json | null
+          severity?: string | null
+          status?: string | null
+          title?: string | null
+          triggered_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          external_id?: string
+          host_id?: string | null
+          id?: string
+          provider_id?: string | null
+          raw?: Json | null
+          severity?: string | null
+          status?: string | null
+          title?: string | null
+          triggered_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_alerts_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_hosts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoring_alerts_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_host_groups: {
+        Row: {
+          created_at: string
+          external_id: string
+          id: string
+          name: string
+          provider_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          id?: string
+          name: string
+          provider_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          id?: string
+          name?: string
+          provider_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_host_groups_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_hosts: {
+        Row: {
+          available: boolean | null
+          created_at: string
+          external_id: string
+          hostname: string | null
+          id: string
+          ip_address: string | null
+          last_seen: string | null
+          name: string
+          provider_id: string | null
+          raw: Json | null
+          status: string | null
+          tags: Json | null
+          updated_at: string
+        }
+        Insert: {
+          available?: boolean | null
+          created_at?: string
+          external_id: string
+          hostname?: string | null
+          id?: string
+          ip_address?: string | null
+          last_seen?: string | null
+          name: string
+          provider_id?: string | null
+          raw?: Json | null
+          status?: string | null
+          tags?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          available?: boolean | null
+          created_at?: string
+          external_id?: string
+          hostname?: string | null
+          id?: string
+          ip_address?: string | null
+          last_seen?: string | null
+          name?: string
+          provider_id?: string | null
+          raw?: Json | null
+          status?: string | null
+          tags?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_hosts_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_providers: {
+        Row: {
+          config: Json
+          created_at: string
+          health_score: number
+          id: string
+          kind: string
+          last_error: string | null
+          last_sync_at: string | null
+          name: string
+          secret_ref: string | null
+          status: string
+          sync_interval_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          health_score?: number
+          id?: string
+          kind: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          name: string
+          secret_ref?: string | null
+          status?: string
+          sync_interval_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          health_score?: number
+          id?: string
+          kind?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          name?: string
+          secret_ref?: string | null
+          status?: string
+          sync_interval_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      monitoring_sync_logs: {
+        Row: {
+          duration_ms: number | null
+          finished_at: string | null
+          id: string
+          message: string | null
+          provider_id: string | null
+          records_ingested: number
+          result: string
+          started_at: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          provider_id?: string | null
+          records_ingested?: number
+          result?: string
+          started_at?: string
+        }
+        Update: {
+          duration_ms?: number | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          provider_id?: string | null
+          records_ingested?: number
+          result?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_sync_logs_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_health: {
+        Row: {
+          health_score: number | null
+          id: string
+          latency_ms: number | null
+          message: string | null
+          provider_id: string | null
+          recorded_at: string
+          status: string | null
+        }
+        Insert: {
+          health_score?: number | null
+          id?: string
+          latency_ms?: number | null
+          message?: string | null
+          provider_id?: string | null
+          recorded_at?: string
+          status?: string | null
+        }
+        Update: {
+          health_score?: number | null
+          id?: string
+          latency_ms?: number | null
+          message?: string | null
+          provider_id?: string | null
+          recorded_at?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_health_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zbx_role_map: {
         Row: {
           platform_role: Database["public"]["Enums"]["app_role"]

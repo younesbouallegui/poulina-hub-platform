@@ -129,7 +129,7 @@ const App = () => (
                   <Route
                     path="/governance/users"
                     element={
-                      <RoleGuard allow={["admin"]}>
+                      <RoleGuard allow={["super_admin", "admin"]}>
                         <GovernanceUsers />
                       </RoleGuard>
                     }
@@ -137,7 +137,7 @@ const App = () => (
                   <Route
                     path="/governance/departments"
                     element={
-                      <RoleGuard allow={["admin"]}>
+                      <RoleGuard allow={["super_admin", "admin"]}>
                         <GovernanceDepartments />
                       </RoleGuard>
                     }
@@ -145,11 +145,12 @@ const App = () => (
                   <Route
                     path="/governance/audit"
                     element={
-                      <RoleGuard allow={["admin", "auditor"]}>
+                      <RoleGuard allow={["super_admin", "admin", "auditor"]}>
                         <GovernanceAuditLog />
                       </RoleGuard>
                     }
                   />
+
                   <Route
                     path="/integrations"
                     element={
