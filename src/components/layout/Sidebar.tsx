@@ -128,12 +128,21 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
     },
 
     {
+      id: "applications",
+      title: "Applications",
+      items: [
+        { to: "/applications", label: "Command Center", icon: AppWindow, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/applications/registry", label: "Application Registry", icon: Boxes, allow: ["super_admin", "admin", "operator"] },
+        { to: "/applications/topology", label: "Service Map", icon: Network, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/applications/alerts", label: "Alert Rules", icon: Siren, allow: ["super_admin", "admin", "operator"] },
+      ],
+    },
+    {
       id: "cmdb",
       title: "CMDB",
       items: [
         { to: "/cmdb/assets", label: "Asset Registry", icon: Boxes, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/cmdb/services", label: "Business Services", icon: Layers, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
-        { to: "/applications", label: "Applications", icon: AppWindow, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
       ],
     },
     {
