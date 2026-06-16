@@ -29,7 +29,23 @@ import {
   BookOpen,
   History,
   Bot,
+  Activity,
+  Container,
+  HardDrive,
+  Database,
+  Scale,
+  Cloud,
+  Building,
+  GitBranch,
+  TrendingUp,
+  Wrench,
+  Workflow,
+  Radar,
+  ShieldHalf,
+  MonitorCog,
+  Cpu,
 } from "lucide-react";
+
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/contexts/I18nContext";
