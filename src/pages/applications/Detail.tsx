@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, GitBranch, ListChecks, Network, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, GitBranch, ListChecks, Network, ScrollText, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useApplication, useApplications, useAlertRules } from "@/hooks/useApplications";
 import { AppStatusBadge, HealthBar } from "@/components/applications/AppStatusBadge";
+import DatabasesPanel from "@/components/applications/DatabasesPanel";
+import { aggregateDbMetrics, generateAppInsights, generateTraces, getAppDatabases } from "@/lib/appDatabases";
 import { HOSTS } from "@/data/monitoringMock";
 import { cn } from "@/lib/utils";
 
