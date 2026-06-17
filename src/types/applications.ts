@@ -63,9 +63,30 @@ export interface AppEndpoint {
   statusDist: { code: number; count: number }[];
 }
 
+export interface AppDbBackup {
+  id: string;
+  type: "full" | "incremental" | "differential";
+  startedAt: string;
+  durationMs: number;
+  sizeMb: number;
+  status: "success" | "failed" | "running";
+  restoreTested?: boolean;
+  restoreTestedAt?: string;
+}
+
+export interface AppDbSlowQuery {
+  id: string;
+  sql: string;
+  avgMs: number;
+  calls: number;
+  lastSeen: string;
+}
+
 export interface AppDbHealth {
+  id?: string;
   name: string;
-  engine: "postgres" | "mysql" | "mongodb" | "oracle" | "mssql" | "redis";
+  engine: "postgres" | "mysql" | "mongodb" | "oracle" | "mssql" | "redis" | "openedge";
+  role?: "primary" | "replica" | "cache" | "analytics";
   uptimeDays: number;
   connections: number;
   maxConnections: number;
@@ -73,6 +94,30 @@ export interface AppDbHealth {
   locks: number;
   replicationLagMs: number;
   storageUsedPct: number;
+  // ---- optional extended observability (back-compat) ----
+  status?: AppStatus;
+  cpuPct?: number;
+  memoryPct?: number;
+  diskIops?: number;
+  latencyMs?: number;
+  qps?: number;
+  tps?: number;
+  p95Ms?: number;
+  p99Ms?: number;
+  errorRate?: number;
+  activeConnections?: number;
+  idleConnections?: number;
+  failedConnections?: number;
+  deadlocks?: number;
+  lockWaits?: number;
+  queryErrors?: number;
+  dbSizeGb?: number;
+  tables?: number;
+  indexes?: number;
+  growthGbPerDay?: number;
+  replicaStatus?: "in-sync" | "lagging" | "broken" | "n/a";
+  backups?: AppDbBackup[];
+  slowQueryList?: AppDbSlowQuery[];
 }
 
 export interface AppLog {
@@ -129,6 +174,7 @@ export interface Application {
   jobs: AppJob[];
   endpoints: AppEndpoint[];
   db?: AppDbHealth;
+  databases?: AppDbHealth[];
   recentLogs: AppLog[];
   dependencies: AppDependency[];
   updatedAt: string;
