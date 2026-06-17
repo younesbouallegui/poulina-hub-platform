@@ -121,19 +121,9 @@ export default function ApplicationDetail() {
           </TabsContent>
 
           <TabsContent value="db">
-            {app.db ? (
-              <Card title={`${app.db.engine.toUpperCase()} · ${app.db.name}`}>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Uptime" value={`${app.db.uptimeDays}d`} />
-                  <Stat label="Connections" value={`${app.db.connections}/${app.db.maxConnections}`} />
-                  <Stat label="Slow queries" value={`${app.db.slowQueries}`} tone={app.db.slowQueries > 50 ? "critical" : app.db.slowQueries > 10 ? "warning" : "success"} />
-                  <Stat label="Locks" value={`${app.db.locks}`} />
-                  <Stat label="Replication lag" value={`${app.db.replicationLagMs}ms`} tone={app.db.replicationLagMs > 5000 ? "critical" : "success"} />
-                  <Stat label="Storage" value={`${app.db.storageUsedPct.toFixed(0)}%`} bar={app.db.storageUsedPct} />
-                </div>
-              </Card>
-            ) : <Card title="Database"><p className="py-6 text-center text-xs text-muted-foreground">No database attached to this application.</p></Card>}
+            <DatabasesPanel app={app} />
           </TabsContent>
+
 
           <TabsContent value="jobs">
             <Card title="Scheduled jobs / scripts">
