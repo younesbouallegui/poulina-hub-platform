@@ -186,6 +186,55 @@ export default function ApplicationDetail() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="traces">
+            <Card title="Request traces (sampled)">
+              <ul className="space-y-3">
+                {traces.map((t) => (
+                  <li key={t.id} className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-mono">{t.endpoint}</span>
+                      <span className="text-muted-foreground text-[11px]">{new Date(t.sampledAt).toLocaleTimeString()} · total <span className="font-semibold text-foreground">{t.totalMs}ms</span></span>
+                    </div>
+                    <div className="mt-2 flex h-6 w-full overflow-hidden rounded bg-muted/40">
+                      {t.spans.map((s, i) => {
+                        const color = s.kind === "db" ? "bg-primary/70" : s.kind === "cache" ? "bg-secondary/70" : s.kind === "ext" ? "bg-warning/70" : "bg-success/70";
+                        const pct = (s.ms / t.totalMs) * 100;
+                        return <div key={i} className={cn(color, "flex items-center justify-center text-[10px] text-white")} style={{ width: `${pct}%` }} title={`${s.service} · ${s.ms}ms`}>{pct > 10 ? `${s.ms}ms` : ""}</div>;
+                      })}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+                      {t.spans.map((s, i) => <Badge key={i} variant="outline">{s.service} · {s.kind} · {s.ms}ms</Badge>)}
+                      <Badge variant="secondary">bottleneck: {t.bottleneck}</Badge>
+                    </div>
+                  </li>
+                ))}
+                {!traces.length && <li className="py-6 text-center text-xs text-muted-foreground">No traces sampled</li>}
+              </ul>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <Card title="AI insights">
+              <ul className="space-y-2">
+                {insights.map((i) => (
+                  <li key={i.id} className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Sparkles className={cn("h-3.5 w-3.5",
+                        i.severity === "critical" ? "text-destructive" :
+                        i.severity === "warning" ? "text-warning" : "text-primary")} />
+                      {i.title}
+                      <Badge variant={i.severity === "critical" ? "destructive" : "secondary"} className="ml-auto text-[10px]">{i.severity}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{i.detail}</p>
+                    <p className="mt-1 text-xs"><span className="font-semibold">Recommendation: </span>{i.recommendation}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </TabsContent>
+
+
+
           <TabsContent value="incidents">
             <Card title="Application incidents">
               {app.activeIncidents > 0 ? (
