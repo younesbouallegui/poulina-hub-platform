@@ -60,6 +60,23 @@ export default function ApplicationDetail() {
           <Stat label="P95 latency" value={`${app.latencyP95Ms}ms`} />
         </div>
 
+        <div className="rounded-xl border border-border bg-card/50 p-3">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Database className="h-3 w-3" />Database aggregation
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 font-mono normal-case tracking-normal">
+              {dbs.length === 0 ? "no database attached" : `${dbs.length} database${dbs.length > 1 ? "s" : ""}`}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5">
+            <Stat label="Avg DB latency" value={`${dbAgg.avgLatencyMs}ms`} />
+            <Stat label="Total connections" value={`${dbAgg.totalConnections}`} />
+            <Stat label="Total QPS" value={dbAgg.totalQps.toLocaleString()} />
+            <Stat label="DB error rate" value={`${dbAgg.avgErrorRate}%`} tone={dbAgg.avgErrorRate > 3 ? "critical" : dbAgg.avgErrorRate > 1 ? "warning" : "success"} />
+            <Stat label="Worst DB status" value={dbAgg.worstStatus} tone={dbAgg.worstStatus === "critical" || dbAgg.worstStatus === "degraded" ? "critical" : dbAgg.worstStatus === "warning" ? "warning" : "success"} />
+          </div>
+        </div>
+
+
         <Tabs defaultValue="overview">
           <TabsList className="flex flex-wrap">
             <TabsTrigger value="overview"><Activity className="mr-1 h-3.5 w-3.5" />Overview</TabsTrigger>
