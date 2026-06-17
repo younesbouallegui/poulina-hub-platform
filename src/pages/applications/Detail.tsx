@@ -64,10 +64,12 @@ export default function ApplicationDetail() {
           <TabsList className="flex flex-wrap">
             <TabsTrigger value="overview"><Activity className="mr-1 h-3.5 w-3.5" />Overview</TabsTrigger>
             <TabsTrigger value="logs"><ScrollText className="mr-1 h-3.5 w-3.5" />Logs</TabsTrigger>
-            <TabsTrigger value="db"><Database className="mr-1 h-3.5 w-3.5" />Database</TabsTrigger>
+            <TabsTrigger value="db"><Database className="mr-1 h-3.5 w-3.5" />Databases{dbs.length ? ` (${dbs.length})` : ""}</TabsTrigger>
             <TabsTrigger value="jobs"><ListChecks className="mr-1 h-3.5 w-3.5" />Jobs</TabsTrigger>
             <TabsTrigger value="api"><Code2 className="mr-1 h-3.5 w-3.5" />API</TabsTrigger>
             <TabsTrigger value="infra"><Boxes className="mr-1 h-3.5 w-3.5" />Infrastructure</TabsTrigger>
+            <TabsTrigger value="traces"><Workflow className="mr-1 h-3.5 w-3.5" />Traces</TabsTrigger>
+            <TabsTrigger value="ai"><Sparkles className="mr-1 h-3.5 w-3.5" />AI Insights</TabsTrigger>
             <TabsTrigger value="incidents"><AlertTriangle className="mr-1 h-3.5 w-3.5" />Incidents</TabsTrigger>
             <TabsTrigger value="deps"><Network className="mr-1 h-3.5 w-3.5" />Dependencies</TabsTrigger>
             <TabsTrigger value="alerts"><Bell className="mr-1 h-3.5 w-3.5" />Alerts</TabsTrigger>
