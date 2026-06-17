@@ -174,6 +174,7 @@ export interface Application {
   jobs: AppJob[];
   endpoints: AppEndpoint[];
   db?: AppDbHealth;
+  databases?: AppDbHealth[];
   recentLogs: AppLog[];
   dependencies: AppDependency[];
   updatedAt: string;
