@@ -31,6 +31,10 @@ export default function ApplicationDetail() {
   const hosts = HOSTS.filter((h) => app.hostIds.includes(h.id));
   const appRules = rules.filter((r) => r.appId === app.id);
   const linkedApps = (id?: string) => all.find((a) => a.id === id);
+  const dbs = useMemo(() => getAppDatabases(app), [app]);
+  const dbAgg = useMemo(() => aggregateDbMetrics(dbs), [dbs]);
+  const insights = useMemo(() => generateAppInsights(app), [app]);
+  const traces = useMemo(() => generateTraces(app, dbs), [app, dbs]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
