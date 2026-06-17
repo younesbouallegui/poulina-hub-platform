@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, GitBranch, ListChecks, Network, ScrollText, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, ListChecks, Network, ScrollText, Sparkles, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
