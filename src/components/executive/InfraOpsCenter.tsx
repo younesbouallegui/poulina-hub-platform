@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { Server as ServerIcon, AlertTriangle } from "lucide-react";
 import { useServers, useSites, useCapacityForecasts } from "@/hooks/useInfrastructure";
+import { fleetAgentPosture } from "@/lib/serverCockpit";
 
 export function InfraOpsCenter() {
   const { data: servers = [] } = useServers();
@@ -12,6 +12,7 @@ export function InfraOpsCenter() {
   const avgSla = servers.length ? (servers.reduce((a, s) => a + s.slaActual, 0) / servers.length) : 100;
   const risk = Math.round(servers.length ? (servers.reduce((a, s) => a + s.riskScore, 0) / servers.length) : 0);
   const highRiskCap = caps.filter((c) => c.risk === "high").length;
+  const posture = fleetAgentPosture(servers);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -25,7 +26,16 @@ export function InfraOpsCenter() {
         <Kpi label="Fleet SLA" value={`${avgSla.toFixed(2)}%`} />
         <Kpi label="Risk score" value={String(risk)} intent={risk > 60 ? "warn" : "ok"} />
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+      <div className="mt-3 grid gap-3 md:grid-cols-5">
+        <Kpi label="Zabbix online" value={`${posture.zabbixOnline}/${servers.length}`} intent={posture.zabbixOffline ? "warn" : "ok"} hint={`${posture.zabbixOffline} offline`} />
+        <Kpi label="AI agents online" value={`${posture.aiOnline}/${servers.length}`} intent={posture.aiOffline ? "warn" : "ok"} hint={`${posture.aiOffline} offline`} />
+        <Kpi label="Agent failures" value={String(posture.agentFailures)} intent={posture.agentFailures > 0 ? "warn" : "ok"} />
+        <Kpi label="App server avail." value={`${posture.appServerAvailability}%`} />
+        <Kpi label="OpenEdge avail." value={`${posture.openEdgeAvailability}%`} />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Sites posture</p>
           <div className="space-y-1.5">
@@ -47,6 +57,18 @@ export function InfraOpsCenter() {
               </div>
             ))}
             {caps.filter((c) => c.risk !== "low").length === 0 && <p className="text-xs text-muted-foreground">No capacity risks.</p>}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">Top critical servers</p>
+          <div className="space-y-1.5">
+            {posture.topCritical.map((s) => (
+              <Link key={s.id} to={`/infrastructure/servers/${s.id}`} className="flex items-center justify-between rounded-md border border-border bg-background px-2.5 py-1.5 text-xs hover:border-primary/40">
+                <span className="font-mono">{s.hostname}</span>
+                <span className={`font-mono text-[10px] ${s.score > 80 ? "text-success" : s.score > 60 ? "text-yellow-600" : "text-destructive"}`}>{s.score}/100</span>
+              </Link>
+            ))}
+            {posture.topCritical.length === 0 && <p className="text-xs text-muted-foreground">All servers healthy.</p>}
           </div>
         </div>
       </div>
