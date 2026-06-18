@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import type { Session, User as SbUser } from "@supabase/supabase-js";
 
 export type Role = "super_admin" | "admin" | "operator" | "viewer" | "auditor";
@@ -12,7 +11,8 @@ export interface User {
   initials: string;
   role: Role;
   roles: Role[];
-  /** kept for backward compatibility with legacy components/screens */
+  zabbixUserId?: string | null;
+  zabbixUsername?: string | null;
   assignedServers: string[];
 }
 
@@ -21,10 +21,8 @@ interface AuthContextValue {
   session: Session | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string, remember: boolean) => Promise<void>;
-  signup: (email: string, password: string, fullName: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
+  /** `usernameOrEmail` is the Zabbix username. Password is the user's Zabbix password. */
+  login: (usernameOrEmail: string, password: string, remember: boolean) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (...roles: Role[]) => boolean;
 }
@@ -35,21 +33,31 @@ const ROLE_PRIORITY: Role[] = ["super_admin", "admin", "operator", "auditor", "v
 const pickPrimary = (roles: Role[]): Role =>
   ROLE_PRIORITY.find((r) => roles.includes(r)) ?? "viewer";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
 const buildBaseUser = (sb: SbUser): Omit<User, "role" | "roles"> => {
-  const email = sb.email ?? "";
   const meta = (sb.user_metadata ?? {}) as Record<string, unknown>;
+  const email = sb.email ?? "";
   const fullName =
     (meta.full_name as string) ||
-    (meta.name as string) ||
-    email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
+    (meta.zabbix_username as string) ||
+    email.split("@")[0] ||
     "User";
   const initials = fullName
-    .split(" ")
+    .split(/\s+/)
     .map((s) => s[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  return { id: sb.id, email, name: fullName, initials, assignedServers: [] };
+  return {
+    id: sb.id,
+    email,
+    name: fullName,
+    initials,
+    zabbixUserId: (meta.zabbix_userid as string) ?? null,
+    zabbixUsername: (meta.zabbix_username as string) ?? null,
+    assignedServers: [],
+  };
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -58,21 +66,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const loadRoles = useCallback(async (sb: SbUser): Promise<User> => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", sb.id);
-    const roles = !error && data ? (data.map((r) => r.role as Role)) : ["viewer" as Role];
-    const safeRoles = roles.length ? roles : ["viewer" as Role];
-    return { ...buildBaseUser(sb), roles: safeRoles, role: pickPrimary(safeRoles) };
+    const { data, error } = await (supabase as any).rpc("current_user_platform_roles");
+    let roles: Role[] = ["viewer"];
+    let zabbixUserId: string | null = null;
+    let zabbixUsername: string | null = null;
+    if (!error && Array.isArray(data) && data.length) {
+      roles = Array.from(new Set(data.map((r: any) => r.role as Role)));
+      zabbixUserId = data[0]?.zabbix_userid ?? null;
+      zabbixUsername = data[0]?.username ?? null;
+    }
+    const base = buildBaseUser(sb);
+    return {
+      ...base,
+      zabbixUserId: zabbixUserId ?? base.zabbixUserId,
+      zabbixUsername: zabbixUsername ?? base.zabbixUsername,
+      roles,
+      role: pickPrimary(roles),
+    };
   }, []);
 
   useEffect(() => {
-    // CRITICAL: subscribe BEFORE getSession
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       if (newSession?.user) {
-        // Defer Supabase calls to avoid deadlocking the auth callback
         setTimeout(() => {
           loadRoles(newSession.user).then(setUser).catch(() => setUser(null));
         }, 0);
@@ -93,31 +109,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => sub.subscription.unsubscribe();
   }, [loadRoles]);
 
-  const login = async (email: string, password: string, _remember: boolean) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-  };
+  const login = async (usernameOrEmail: string, password: string, _remember: boolean) => {
+    // Strip @domain if the user pasted an email — Zabbix expects the bare username.
+    const username = usernameOrEmail.includes("@")
+      ? usernameOrEmail.split("@")[0]
+      : usernameOrEmail.trim();
 
-  const signup = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectUrl, data: { full_name: fullName } },
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zabbix-auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
     });
-    if (error) throw error;
-  };
-
-  const loginWithGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) throw result.error;
-  };
-
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.error || `Zabbix login failed (${res.status})`);
+    }
+    if (!body?.session?.access_token || !body?.session?.refresh_token) {
+      throw new Error("Zabbix login did not return a session");
+    }
+    const { error } = await supabase.auth.setSession({
+      access_token: body.session.access_token,
+      refresh_token: body.session.refresh_token,
     });
     if (error) throw error;
   };
@@ -136,9 +148,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!session,
         loading,
         login,
-        signup,
-        loginWithGoogle,
-        resetPassword,
         logout,
         hasRole,
       }}
@@ -153,18 +162,7 @@ const FALLBACK_AUTH: AuthContextValue = {
   session: null,
   isAuthenticated: false,
   loading: true,
-  login: async () => {
-    throw new Error("Auth not ready");
-  },
-  signup: async () => {
-    throw new Error("Auth not ready");
-  },
-  loginWithGoogle: async () => {
-    throw new Error("Auth not ready");
-  },
-  resetPassword: async () => {
-    throw new Error("Auth not ready");
-  },
+  login: async () => { throw new Error("Auth not ready"); },
   logout: async () => {},
   hasRole: () => false,
 };

@@ -1,81 +1,110 @@
-## Phase 3 — Enterprise Application Monitoring Platform
+# Zabbix Identity Integration & Governance
 
-This is a very large scope (a full APM + CMDB + topology + executive layer on top of the existing Zabbix UI). To ship it cleanly without breaking what already works, I'll build it **frontend-first on a typed mock data layer**, then we can wire each module to Lovable Cloud / Zabbix in follow-up phases.
+Replace the current Supabase email/Google auth with Zabbix as the source of truth for identity. The platform becomes a Zabbix admin console with full user CRUD, role mirroring, and a dual audit trail.
 
-### Approach
+> ⚠️ Heads-up: this is a breaking change. Existing Supabase logins (including Google) will stop working after rollout. Only users that exist in Zabbix will be able to sign in. Make sure your Zabbix admin account is ready before we deploy.
 
-- All new code lives under a new `applications/` domain (types, mock store, hooks, pages, components) — does **not** touch existing Incidents / Infrastructure / Dashboards.
-- A single in-memory store (`useApplicationsStore`) with React Query hooks simulates real-time updates (poll + jitter). Easy to swap for Cloud later.
-- New routes added to `App.tsx`, new sidebar group "Applications".
+---
 
-### Deliverables (this phase)
-
-**1. Data model** (`src/types/applications.ts`)
-- `Application`, `AppService`, `AppComponent`, `AppJob`, `AppAPIEndpoint`, `AppDatabase`, `AppLogEntry`, `AppDependency`, `AppAlertRule`, `AppIncidentLink`
-- Enums: env (prod/uat/dev), type (web/api/db/batch/worker/scheduler/middleware/k8s/vm), criticality tier (T0–T3), status (healthy/warning/degraded/critical/unknown)
-- Monitoring scope flags (the ~20 checkboxes from spec)
-
-**2. Mock data + store** (`src/data/applicationsMock.ts`, `src/stores/applications.ts`)
-- ~12 realistic applications across the existing HOSTS (SAP ERP, Billing API, Customer Portal, PostgreSQL Cluster, HR Platform, Auth Service, etc.)
-- Live-updating metrics (health/SLA/error rate/latency) via React Query with refetch interval
-- CRUD via Zustand-style store
-
-**3. Routes & pages**
-- `/applications` — **Application Command Dashboard**: KPI strip, status grid (sortable table + card view toggle), heatmap, top failing / noisy / business-critical panels, filters (env, criticality, dept, region, status), search, fullscreen NOC mode, export CSV.
-- `/applications/registry` — **Application Registry / CMDB**: list + create/edit dialog (multi-step: identity → ownership → servers → monitoring scope → SLA → tags/deps).
-- `/applications/:id` — **Application Detail Cockpit** with tabs: Overview, Logs, Database, Jobs, API, Infrastructure, Incidents, Dependencies, Alerts, Settings.
-- `/applications/topology` — **Service Map**: interactive SVG/Canvas graph (force layout) showing apps ↔ servers ↔ DBs ↔ APIs, blast-radius highlight on hover, severity coloring.
-- `/applications/alerts` — alert rule manager (rule list, create/edit, notification channels: Email/Slack/Teams/Webhook/Zabbix).
-
-**4. Executive integration**
-- Add **"Application Operations Center"** section to `/executive`: total apps, healthy/degraded/critical donut, business-critical KPI tiles, global app SLA gauge, risk score, availability heatmap by region, top-5 risk list.
-
-**5. Navigation & RBAC**
-- Sidebar: new "Applications" group (Command, Registry, Topology, Alerts).
-- `RoleGuard` on Registry write actions and Alerts (admin/operator).
-- Audit log entries emitted via existing governance audit hook for create/update/delete.
-
-**6. UX polish**
-- Real-time status pulses (animated dot), severity color tokens added to `index.css` (`--status-healthy/warning/degraded/critical`).
-- Dark/light themed via existing `ThemeContext`.
-- Responsive, keyboard-navigable, drill-down everywhere (app row → detail; topology node → detail).
-
-### What's explicitly deferred (call out so we agree)
-
-- Real Zabbix item/trigger ingestion → still uses existing `zabbix-connector` shape; we'll wire the actual pull in Phase 3.5.
-- OpenTelemetry / Prometheus / Loki / Tempo / Jaeger ingestion.
-- WebSocket transport (we simulate with React Query polling now; swap to Supabase Realtime later).
-- Persisting the registry to Postgres (currently in-memory + localStorage). I'll add the Cloud-backed schema + RLS in the immediately-following turn once you approve this UI plan.
-
-### Technical notes
+## 1. Architecture
 
 ```text
-src/
-  types/applications.ts
-  data/applicationsMock.ts
-  stores/applications.ts                (zustand + persist)
-  hooks/useApplications.ts              (RQ wrappers, polling)
-  pages/applications/
-    Command.tsx
-    Registry.tsx
-    Detail.tsx
-    Topology.tsx
-    Alerts.tsx
-  components/applications/
-    AppStatusBadge.tsx
-    AppHealthScore.tsx
-    AppGrid.tsx
-    AppFilters.tsx
-    AppHeatmap.tsx
-    AppCreateDialog.tsx
-    MonitoringScopeForm.tsx
-    TopologyGraph.tsx
-    detail/{Overview,Logs,Database,Jobs,Api,Infra,Incidents,Dependencies,Alerts}Tab.tsx
-  components/executive/AppOpsCenter.tsx
+ ┌──────────┐   email+password   ┌────────────────────┐   user.login    ┌─────────┐
+ │ Browser  │ ─────────────────▶ │ edge: zabbix-auth  │ ──────────────▶ │ Zabbix  │
+ └──────────┘                    └────────────────────┘                 └─────────┘
+      ▲                                   │                                 │
+      │ Supabase session (custom JWT       │ user.get + role.get +          │
+      │ minted from Zabbix profile)        │ usergroup.get                  │
+      │                                    ▼                                │
+      │                          ┌────────────────────┐                     │
+      └────────────────────────  │  identity cache &  │  ◀──── sync job ────┘
+                                 │  audit (Postgres)  │      (every 15 min)
+                                 └────────────────────┘
 ```
 
-### Confirm before I build
+- **Login**: user submits Zabbix username + password → edge function `zabbix-auth` calls `user.login`, fetches profile/roles/groups, then provisions/updates a matching Supabase auth user (deterministic email `zbx-{userid}@zabbix.local` or real email when present) and returns a session.
+- **Session**: still a Supabase JWT (so `supabase.auth` works everywhere) but the user's roles come from the mirrored Zabbix data, not from `user_roles`.
+- **Sync**: a scheduled edge function reconciles `zbx_users / zbx_roles / zbx_user_groups` tables every 15 min and on-demand from the Users page.
+- **Writes**: every create/edit/disable/reset/group/role action calls the Zabbix API first, then updates the mirror, then writes audit.
 
-1. Frontend-first with mock store now, Cloud-backed schema + RLS in the very next step — OK?
-2. Should the Topology graph use a lightweight custom SVG force layout (zero deps, fast), or do you want me to add `reactflow` / `cytoscape`?
-3. Any apps/servers I should seed besides the obvious (SAP ERP, Billing API, Customer Portal, PostgreSQL, HR, Auth)?
+---
+
+## 2. Database (one migration)
+
+New tables in `public`, all with proper GRANTs + RLS:
+
+- `zbx_users` — `zabbix_userid` (PK), `username`, `name`, `surname`, `email`, `roleid`, `status` (enabled/disabled), `last_synced_at`, `auth_user_id` (FK to `auth.users`, nullable).
+- `zbx_roles` — `roleid` (PK), `name`, `type` (1 user / 2 admin / 3 super admin), `readonly`.
+- `zbx_user_groups` — `usrgrpid` (PK), `name`, `gui_access`, `users_status`.
+- `zbx_user_group_members` — (`usrgrpid`, `zabbix_userid`) composite PK.
+- `identity_audit` — `actor_zabbix_userid`, `actor_username`, `action` (enum: login, user.create, user.update, user.disable, user.delete, password.reset, role.assign, group.assign), `target_zabbix_userid`, `before` jsonb, `after` jsonb, `created_at`.
+
+Policies:
+- `zbx_*` tables: `SELECT` for `authenticated`; writes only via service role (edge functions).
+- `identity_audit`: `INSERT` from edge functions (service role); `SELECT` only for admins/auditors (uses `has_role`).
+
+`has_role()` is rewritten to look up the caller's `zbx_users` row → derived platform role from Zabbix `role.type` + custom-role name mapping.
+
+---
+
+## 3. Edge functions
+
+All call Zabbix through the existing token (no per-user Zabbix tokens stored client-side).
+
+1. **`zabbix-auth`** (`verify_jwt = false`) — POST `{username, password}` → calls Zabbix `user.login` to validate, then fetches `user.get` + `role.get` + `usergroup.get`, upserts mirror tables, ensures a Supabase auth user exists (admin API with service role), signs them in (server-side `admin.generateLink` → returns access+refresh tokens), writes `identity_audit{action: login}`.
+2. **`zabbix-users`** — authenticated CRUD endpoints:
+   - `POST /create` → `user.create` then mirror upsert + audit
+   - `PATCH /update` → `user.update` (also handles enable/disable via `users_status`) + audit with before/after
+   - `POST /reset-password` → `user.update` with new password + audit (value redacted)
+   - `DELETE /delete` → `user.delete` + mirror delete + audit
+   - `POST /assign-groups` / `POST /assign-role` → `user.update` + audit
+   - Requires platform role `super_admin` or `admin`.
+3. **`zabbix-sync`** — pulls `user.get`/`role.get`/`usergroup.get` and reconciles mirror tables. Triggered (a) every 15 min via `pg_cron`+`pg_net`, (b) on demand from Users page “Sync now” button.
+
+Roles map:
+- Zabbix type 3 (Super admin) → `super_admin`
+- Zabbix type 2 (Admin) → `admin`
+- Zabbix type 1 (User) → `operator`
+- Custom roles → `operator` by default, overridable via a small `zbx_role_map` table (added in same migration) so admins can re-map without code changes.
+
+---
+
+## 4. Frontend
+
+- **`AuthContext`** — replace email/Google login with Zabbix username/password. `loadRoles` now reads from `zbx_users` joined to `zbx_role_map`. Google button + signup removed; “Forgot password” becomes “Contact your Zabbix administrator”.
+- **`Login.tsx`** — relabel email→username, drop Google CTA, add help text “Use your Zabbix credentials”.
+- **`/governance/users`** — rebuilt as a Zabbix admin console:
+  - Table fed by `zbx_users` (joined with roles/groups), with “Sync now”, search, role/group filters.
+  - Row actions: edit, reset password, enable/disable, delete, assign groups, assign role — each calls the `zabbix-users` edge function and refreshes the row.
+  - “Create user” dialog with username/name/surname/email/password/role/groups.
+- **`/governance/audit-log`** — extended to show `identity_audit` entries with before/after diff viewer.
+- **`/governance/departments`** — repointed to Zabbix user groups (read-only in this iteration, with a note).
+
+Permission enforcement (RBAC) stays as-is in `RoleGuard`/sidebar, but the roles now flow from Zabbix.
+
+---
+
+## 5. Audit (both stores)
+
+- Platform writes every identity event to `identity_audit`.
+- Zabbix records its own audit natively for every API call we make on its side (no extra work needed there). Audit Log page gets a tab “Zabbix audit” that fetches `auditlog.get` via the proxy for cross-checks.
+
+---
+
+## 6. Out of scope for this iteration
+
+- SSO providers (LDAP/AD/SAML/OIDC/Azure AD/Keycloak) — skipped per your answer.
+- Media types editing — deferred (read-only).
+- Conflict resolution UI for sync — sync is last-write-wins from Zabbix; conflicts are surfaced as toast on the Users page.
+
+---
+
+## 7. Rollout order
+
+1. Migration (tables, grants, RLS, role-map seed, `has_role` rewrite).
+2. Edge functions `zabbix-auth`, `zabbix-users`, `zabbix-sync` + `pg_cron` schedule.
+3. `AuthContext` + `Login.tsx` rewrite.
+4. Users page rebuild + Audit Log extension.
+5. Smoke test: log in with a Zabbix super-admin, create a test user, disable it, reset password, verify mirror + audit + Zabbix UI all agree.
+
+Reply **approve** to start, or tell me what to change.

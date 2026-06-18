@@ -14,99 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
-      assets: {
-        Row: {
-          created_at: string
-          hostname: string | null
-          id: string
-          ip_address: string | null
-          name: string
-          os: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          hostname?: string | null
-          id?: string
-          ip_address?: string | null
-          name: string
-          os?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          hostname?: string | null
-          id?: string
-          ip_address?: string | null
-          name?: string
-          os?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      audit_log: {
+      identity_audit: {
         Row: {
           action: string
-          actor_email: string | null
-          actor_id: string | null
+          actor_auth_user_id: string | null
+          actor_username: string | null
+          actor_zabbix_userid: string | null
+          after: Json | null
+          before: Json | null
           created_at: string
-          entity_id: string | null
-          entity_type: string
           id: string
           metadata: Json | null
+          source: string | null
+          target_username: string | null
+          target_zabbix_userid: string | null
         }
         Insert: {
           action: string
-          actor_email?: string | null
-          actor_id?: string | null
+          actor_auth_user_id?: string | null
+          actor_username?: string | null
+          actor_zabbix_userid?: string | null
+          after?: Json | null
+          before?: Json | null
           created_at?: string
-          entity_id?: string | null
-          entity_type: string
           id?: string
           metadata?: Json | null
+          source?: string | null
+          target_username?: string | null
+          target_zabbix_userid?: string | null
         }
         Update: {
           action?: string
-          actor_email?: string | null
-          actor_id?: string | null
+          actor_auth_user_id?: string | null
+          actor_username?: string | null
+          actor_zabbix_userid?: string | null
+          after?: Json | null
+          before?: Json | null
           created_at?: string
-          entity_id?: string | null
-          entity_type?: string
           id?: string
           metadata?: Json | null
-        }
-        Relationships: []
-      }
-      departments: {
-        Row: {
-          code: string
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
+          source?: string | null
+          target_username?: string | null
+          target_zabbix_userid?: string | null
         }
         Relationships: []
       }
       monitoring_alerts: {
         Row: {
-          acknowledged_at: string | null
           created_at: string
           description: string | null
           external_id: string
@@ -114,15 +68,12 @@ export type Database = {
           id: string
           provider_id: string | null
           raw: Json | null
-          resolved_at: string | null
-          severity: string
-          status: string
-          title: string
-          triggered_at: string
-          updated_at: string
+          severity: string | null
+          status: string | null
+          title: string | null
+          triggered_at: string | null
         }
         Insert: {
-          acknowledged_at?: string | null
           created_at?: string
           description?: string | null
           external_id: string
@@ -130,15 +81,12 @@ export type Database = {
           id?: string
           provider_id?: string | null
           raw?: Json | null
-          resolved_at?: string | null
-          severity?: string
-          status?: string
-          title: string
-          triggered_at?: string
-          updated_at?: string
+          severity?: string | null
+          status?: string | null
+          title?: string | null
+          triggered_at?: string | null
         }
         Update: {
-          acknowledged_at?: string | null
           created_at?: string
           description?: string | null
           external_id?: string
@@ -146,12 +94,10 @@ export type Database = {
           id?: string
           provider_id?: string | null
           raw?: Json | null
-          resolved_at?: string | null
-          severity?: string
-          status?: string
-          title?: string
-          triggered_at?: string
-          updated_at?: string
+          severity?: string | null
+          status?: string | null
+          title?: string | null
+          triggered_at?: string | null
         }
         Relationships: [
           {
@@ -170,6 +116,38 @@ export type Database = {
           },
         ]
       }
+      monitoring_host_groups: {
+        Row: {
+          created_at: string
+          external_id: string
+          id: string
+          name: string
+          provider_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          id?: string
+          name: string
+          provider_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          id?: string
+          name?: string
+          provider_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_host_groups_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitoring_hosts: {
         Row: {
           available: boolean | null
@@ -178,6 +156,7 @@ export type Database = {
           hostname: string | null
           id: string
           ip_address: string | null
+          last_seen: string | null
           name: string
           provider_id: string | null
           raw: Json | null
@@ -192,6 +171,7 @@ export type Database = {
           hostname?: string | null
           id?: string
           ip_address?: string | null
+          last_seen?: string | null
           name: string
           provider_id?: string | null
           raw?: Json | null
@@ -206,6 +186,7 @@ export type Database = {
           hostname?: string | null
           id?: string
           ip_address?: string | null
+          last_seen?: string | null
           name?: string
           provider_id?: string | null
           raw?: Json | null
@@ -227,7 +208,7 @@ export type Database = {
         Row: {
           config: Json
           created_at: string
-          health_score: number | null
+          health_score: number
           id: string
           kind: string
           last_error: string | null
@@ -235,13 +216,13 @@ export type Database = {
           name: string
           secret_ref: string | null
           status: string
-          sync_interval_minutes: number | null
+          sync_interval_minutes: number
           updated_at: string
         }
         Insert: {
           config?: Json
           created_at?: string
-          health_score?: number | null
+          health_score?: number
           id?: string
           kind: string
           last_error?: string | null
@@ -249,13 +230,13 @@ export type Database = {
           name: string
           secret_ref?: string | null
           status?: string
-          sync_interval_minutes?: number | null
+          sync_interval_minutes?: number
           updated_at?: string
         }
         Update: {
           config?: Json
           created_at?: string
-          health_score?: number | null
+          health_score?: number
           id?: string
           kind?: string
           last_error?: string | null
@@ -263,56 +244,41 @@ export type Database = {
           name?: string
           secret_ref?: string | null
           status?: string
-          sync_interval_minutes?: number | null
+          sync_interval_minutes?: number
           updated_at?: string
         }
         Relationships: []
       }
       monitoring_sync_logs: {
         Row: {
-          alerts_synced: number | null
           duration_ms: number | null
-          error: string | null
           finished_at: string | null
-          hosts_synced: number | null
           id: string
           message: string | null
-          metadata: Json | null
           provider_id: string | null
-          records_ingested: number | null
-          result: string | null
+          records_ingested: number
+          result: string
           started_at: string
-          status: string
         }
         Insert: {
-          alerts_synced?: number | null
           duration_ms?: number | null
-          error?: string | null
           finished_at?: string | null
-          hosts_synced?: number | null
           id?: string
           message?: string | null
-          metadata?: Json | null
           provider_id?: string | null
-          records_ingested?: number | null
-          result?: string | null
+          records_ingested?: number
+          result?: string
           started_at?: string
-          status?: string
         }
         Update: {
-          alerts_synced?: number | null
           duration_ms?: number | null
-          error?: string | null
           finished_at?: string | null
-          hosts_synced?: number | null
           id?: string
           message?: string | null
-          metadata?: Json | null
           provider_id?: string | null
-          records_ingested?: number | null
-          result?: string | null
+          records_ingested?: number
+          result?: string
           started_at?: string
-          status?: string
         }
         Relationships: [
           {
@@ -324,51 +290,182 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      provider_health: {
         Row: {
-          created_at: string
-          email: string
-          full_name: string | null
+          health_score: number | null
           id: string
-          updated_at: string
-          user_id: string
+          latency_ms: number | null
+          message: string | null
+          provider_id: string | null
+          recorded_at: string
+          status: string | null
         }
         Insert: {
-          created_at?: string
-          email: string
-          full_name?: string | null
+          health_score?: number | null
           id?: string
-          updated_at?: string
-          user_id: string
+          latency_ms?: number | null
+          message?: string | null
+          provider_id?: string | null
+          recorded_at?: string
+          status?: string | null
         }
         Update: {
-          created_at?: string
-          email?: string
-          full_name?: string | null
+          health_score?: number | null
           id?: string
-          updated_at?: string
-          user_id?: string
+          latency_ms?: number | null
+          message?: string | null
+          provider_id?: string | null
+          recorded_at?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_health_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zbx_role_map: {
+        Row: {
+          platform_role: Database["public"]["Enums"]["app_role"]
+          role_type: number | null
+          roleid: string | null
+        }
+        Insert: {
+          platform_role: Database["public"]["Enums"]["app_role"]
+          role_type?: number | null
+          roleid?: string | null
+        }
+        Update: {
+          platform_role?: Database["public"]["Enums"]["app_role"]
+          role_type?: number | null
+          roleid?: string | null
         }
         Relationships: []
       }
-      user_roles: {
+      zbx_roles: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
+          last_synced_at: string
+          name: string
+          readonly: number | null
+          roleid: string
+          type: number
         }
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
+          last_synced_at?: string
+          name: string
+          readonly?: number | null
+          roleid: string
+          type: number
         }
         Update: {
+          last_synced_at?: string
+          name?: string
+          readonly?: number | null
+          roleid?: string
+          type?: number
+        }
+        Relationships: []
+      }
+      zbx_user_group_members: {
+        Row: {
+          usrgrpid: string
+          zabbix_userid: string
+        }
+        Insert: {
+          usrgrpid: string
+          zabbix_userid: string
+        }
+        Update: {
+          usrgrpid?: string
+          zabbix_userid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zbx_user_group_members_usrgrpid_fkey"
+            columns: ["usrgrpid"]
+            isOneToOne: false
+            referencedRelation: "zbx_user_groups"
+            referencedColumns: ["usrgrpid"]
+          },
+          {
+            foreignKeyName: "zbx_user_group_members_zabbix_userid_fkey"
+            columns: ["zabbix_userid"]
+            isOneToOne: false
+            referencedRelation: "zbx_users"
+            referencedColumns: ["zabbix_userid"]
+          },
+        ]
+      }
+      zbx_user_groups: {
+        Row: {
+          gui_access: number | null
+          last_synced_at: string
+          name: string
+          users_status: number | null
+          usrgrpid: string
+        }
+        Insert: {
+          gui_access?: number | null
+          last_synced_at?: string
+          name: string
+          users_status?: number | null
+          usrgrpid: string
+        }
+        Update: {
+          gui_access?: number | null
+          last_synced_at?: string
+          name?: string
+          users_status?: number | null
+          usrgrpid?: string
+        }
+        Relationships: []
+      }
+      zbx_users: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          email: string | null
+          last_synced_at: string
+          name: string | null
+          roleid: string | null
+          status: number | null
+          surname: string | null
+          type: number | null
+          updated_at: string
+          username: string
+          zabbix_userid: string
+        }
+        Insert: {
+          auth_user_id?: string | null
           created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
+          email?: string | null
+          last_synced_at?: string
+          name?: string | null
+          roleid?: string | null
+          status?: number | null
+          surname?: string | null
+          type?: number | null
+          updated_at?: string
+          username: string
+          zabbix_userid: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          email?: string | null
+          last_synced_at?: string
+          name?: string | null
+          roleid?: string | null
+          status?: number | null
+          surname?: string | null
+          type?: number | null
+          updated_at?: string
+          username?: string
+          zabbix_userid?: string
         }
         Relationships: []
       }
@@ -377,6 +474,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_user_platform_roles: {
+        Args: never
+        Returns: {
+          role: Database["public"]["Enums"]["app_role"]
+          username: string
+          zabbix_userid: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -386,7 +491,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "super_admin" | "admin" | "operator" | "auditor" | "viewer"
+      app_role: "super_admin" | "admin" | "operator" | "viewer" | "auditor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -514,7 +619,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "admin", "operator", "auditor", "viewer"],
+      app_role: ["super_admin", "admin", "operator", "viewer", "auditor"],
     },
   },
 } as const

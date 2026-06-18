@@ -1,532 +1,338 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Brain, CheckCircle2, Filter, Loader2, RefreshCw, Wand2, X, Zap, ShieldOff } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/I18nContext";
-import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+// useToast no longer needed at this level — drawer owns ack feedback
 import { cn } from "@/lib/utils";
+import { IncidentDrawer } from "@/components/incidents/IncidentDrawer";
 import {
-  acknowledgeEvent,
-  severityTier,
-  useZabbixEvents,
-  useZabbixProblems,
-  type ZProblem,
-} from "@/lib/zabbix";
-import { IncidentAuditTimeline } from "@/components/incidents/IncidentAuditTimeline";
-import { AiTrustBadge } from "@/components/incidents/AiTrustBadge";
-import { useAiPolicies, useAuditLog, useIncidentKnowledge, useKillSwitch } from "@/hooks/useAiOps";
+  getProblems,
+  getTriggerHosts,
+  type ZabbixProblem,
+  type ZabbixSeverity,
+} from "@/lib/zabbixApi";
 
-type Tier = "critical" | "high" | "medium" | "low";
-type Status = "open" | "acknowledged" | "resolved";
+const REFRESH_MS = 30_000;
+
+const SEVERITY_META: Record<ZabbixSeverity, { label: string; cls: string; dot: string }> = {
+  "5": { label: "Disaster", cls: "bg-red-500/15 text-red-500 ring-red-500/30", dot: "bg-red-500" },
+  "4": { label: "High", cls: "bg-orange-500/15 text-orange-500 ring-orange-500/30", dot: "bg-orange-500" },
+  "3": { label: "Average", cls: "bg-yellow-500/15 text-yellow-600 ring-yellow-500/30", dot: "bg-yellow-500" },
+  "2": { label: "Warning", cls: "bg-blue-500/15 text-blue-500 ring-blue-500/30", dot: "bg-blue-500" },
+  "1": { label: "Info", cls: "bg-slate-400/15 text-slate-400 ring-slate-400/30", dot: "bg-slate-400" },
+  "0": { label: "Not classified", cls: "bg-muted text-muted-foreground ring-border", dot: "bg-muted-foreground" },
+};
+
+function formatDuration(fromUnix: number): string {
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000) - fromUnix);
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+interface Row {
+  problem: ZabbixProblem;
+  hostName: string;
+}
 
 const Incidents = () => {
-  const { hasRole, user } = useAuth();
-  const { t } = useI18n();
-  const { toast } = useToast();
-  const audit = useAuditLog();
-  const canAct = hasRole("admin", "operator");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(REFRESH_MS / 1000);
+  const [severityFilter, setSeverityFilter] = useState<ZabbixSeverity | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "ack">("all");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const timerRef = useRef<number | null>(null);
 
-  const { data: problems = [], isLoading, refetch, isFetching, isError } = useZabbixProblems();
-
-  const [severity, setSeverity] = useState<"all" | Tier>("all");
-  const [status, setStatus] = useState<"all" | Status>("all");
-  const [selected, setSelected] = useState<ZProblem | null>(null);
-  const [acking, setAcking] = useState<string | null>(null);
-
-  const incidents = useMemo(() => {
-    return problems
-      .map((p) => ({
-        problem: p,
-        tier: severityTier(p.severity) as Tier,
-        status: (p.acknowledged === "1" ? "acknowledged" : "open") as Status,
-      }))
-      .filter((i) => severity === "all" || i.tier === severity)
-      .filter((i) => status === "all" || i.status === status);
-  }, [problems, severity, status]);
-
-  const stats = useMemo(() => {
-    const open = problems.filter((p) => p.acknowledged !== "1").length;
-    const acked = problems.length - open;
-    const tiers = problems.reduce(
-      (acc, p) => {
-        const t = severityTier(p.severity) as Tier;
-        acc[t]++;
-        return acc;
-      },
-      { critical: 0, high: 0, medium: 0, low: 0 } as Record<Tier, number>,
-    );
-    const now = Math.floor(Date.now() / 1000);
-    const avgAge =
-      problems.length === 0
-        ? 0
-        : problems.reduce((s, p) => s + (now - parseInt(p.clock, 10)), 0) / problems.length;
-    return { open, acked, tiers, avgAgeMin: Math.round(avgAge / 60) };
-  }, [problems]);
-
-  const ack = async (p: ZProblem) => {
-    if (!canAct) return toast({ title: t("inc.notAllowed"), variant: "destructive" });
-    setAcking(p.eventid);
+  const fetchData = useCallback(async (initial = false) => {
+    if (initial) setLoading(true);
+    else setRefreshing(true);
     try {
-      await acknowledgeEvent(p.eventid, "Acknowledged from Lovable Operations Console");
-      audit.append({
-        actor: user?.email ?? "unknown",
-        kind: "ack",
-        message: `Acknowledged "${p.name}"`,
-        meta: { eventId: p.eventid, host: p.hostName },
+      const problems = await getProblems();
+      const triggerIds = Array.from(new Set(problems.map((p) => p.objectid).filter(Boolean)));
+      const hostsByTrigger = await getTriggerHosts(triggerIds).catch(() => ({}));
+      const built: Row[] = problems.map((p) => {
+        const hosts = hostsByTrigger[p.objectid] || [];
+        return { problem: p, hostName: hosts[0]?.name || hosts[0]?.host || "—" };
       });
-      toast({ title: t("inc.acknowledged") });
-      refetch();
-      if (selected?.eventid === p.eventid) setSelected({ ...selected, acknowledged: "1" });
+      setRows(built);
+      setError(null);
+      setLastUpdated(new Date());
+      setCountdown(REFRESH_MS / 1000);
     } catch (e) {
-      toast({ title: "Acknowledge failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
     } finally {
-      setAcking(null);
+      setLoading(false);
+      setRefreshing(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchData(true);
+  }, [fetchData]);
+
+  // Auto-refresh + countdown
+  useEffect(() => {
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          fetchData(false);
+          return REFRESH_MS / 1000;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    };
+  }, [fetchData]);
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (severityFilter !== "all" && r.problem.severity !== severityFilter) return false;
+      if (statusFilter === "open" && r.problem.acknowledged === "1") return false;
+      if (statusFilter === "ack" && r.problem.acknowledged !== "1") return false;
+      if (query) {
+        const q = query.toLowerCase();
+        if (
+          !r.problem.name.toLowerCase().includes(q) &&
+          !r.hostName.toLowerCase().includes(q)
+        )
+          return false;
+      }
+      return true;
+    });
+  }, [rows, severityFilter, statusFilter, query]);
+
+  const counts = useMemo(() => {
+    const c = { total: rows.length, "5": 0, "4": 0, "3": 0 };
+    for (const r of rows) {
+      const s = r.problem.severity;
+      if (s === "5" || s === "4" || s === "3") c[s]++;
+    }
+    return c;
+  }, [rows]);
+
+  const openIncident = (row: Row) => {
+    setSelected(row);
+    setDrawerOpen(true);
   };
+
 
   return (
     <div className="flex min-h-full flex-col">
       <PageHeader
-        title={t("inc.title")}
-        subtitle={t("inc.subtitle")}
+        title="Incidents"
+        subtitle="Live problems from Zabbix"
         actions={
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
+            </span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground">
+              Refreshing in {countdown}s
+            </span>
+            <button
+              onClick={() => fetchData(false)}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+              Refresh
+            </button>
+          </div>
         }
       />
 
       <div className="flex-1 space-y-4 p-4 sm:p-6">
-        {isError && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
-            Could not reach Zabbix. Showing cached / synced data only.
+        {/* Summary cards */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard label="Total problems" value={counts.total} tone="default" Icon={ShieldAlert} />
+          <SummaryCard label="Disaster" value={counts["5"]} tone="red" Icon={AlertTriangle} />
+          <SummaryCard label="High" value={counts["4"]} tone="orange" Icon={AlertTriangle} />
+          <SummaryCard label="Average" value={counts["3"]} tone="yellow" Icon={AlertTriangle} />
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by host or problem…"
+              className="w-full rounded-md border border-input bg-background py-1.5 pl-8 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as ZabbixSeverity | "all")}
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+          >
+            <option value="all">All severities</option>
+            {(Object.keys(SEVERITY_META) as ZabbixSeverity[])
+              .sort((a, b) => Number(b) - Number(a))
+              .map((s) => (
+                <option key={s} value={s}>
+                  {SEVERITY_META[s].label}
+                </option>
+              ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | "open" | "ack")}
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+          >
+            <option value="all">All status</option>
+            <option value="open">Open</option>
+            <option value="ack">Acknowledged</option>
+          </select>
+        </div>
+
+        {/* Body */}
+        {error && (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <p className="font-semibold">Failed to load problems from Zabbix.</p>
+            <p className="mt-1 text-xs opacity-80">{error}</p>
+            <button
+              onClick={() => fetchData(true)}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </button>
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Kpi label="Total active" value={problems.length} accent="primary" />
-          <Kpi label="Open" value={stats.open} accent="destructive" />
-          <Kpi label="Acknowledged" value={stats.acked} accent="info" />
-          <Kpi label="Critical" value={stats.tiers.critical} accent="destructive" />
-          <Kpi label="Avg age (min)" value={stats.avgAgeMin} accent="primary" />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-            <span className="font-medium uppercase tracking-wider">Filters</span>
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
           </div>
-          <FilterSelect
-            label={t("inc.filterSeverity")}
-            value={severity}
-            onChange={(v) => setSeverity(v as typeof severity)}
-            options={[
-              { value: "all", label: t("common.all") },
-              { value: "critical", label: t("common.critical") },
-              { value: "high", label: "High" },
-              { value: "medium", label: "Medium" },
-              { value: "low", label: "Low" },
-            ]}
-          />
-          <FilterSelect
-            label={t("inc.filterStatus")}
-            value={status}
-            onChange={(v) => setStatus(v as typeof status)}
-            options={[
-              { value: "all", label: t("common.all") },
-              { value: "open", label: t("common.open") },
-              { value: "acknowledged", label: t("common.acknowledged") },
-            ]}
-          />
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card shadow-card">
-          {isLoading ? (
-            <div className="flex items-center justify-center p-10">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        ) : filtered.length === 0 && !error ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/20 p-10 text-center">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-success" />
+            <p className="mt-3 text-sm font-semibold text-foreground">No active problems</p>
+            <p className="text-xs text-muted-foreground">Everything looks healthy.</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="grid grid-cols-[110px_180px_1fr_120px_120px_120px] gap-2 border-b border-border bg-muted/30 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Severity</span>
+              <span>Host</span>
+              <span>Problem</span>
+              <span>Duration</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
             </div>
-          ) : incidents.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 p-10 text-center">
-              <CheckCircle2 className="h-8 w-8 text-success" />
-              <p className="text-sm text-muted-foreground">{t("inc.empty")}</p>
-            </div>
-          ) : (
             <ul className="divide-y divide-border">
-              {incidents.map(({ problem: p, tier, status }) => {
-                const ts = new Date(parseInt(p.clock, 10) * 1000);
+              {filtered.map(({ problem, hostName }) => {
+                const meta = SEVERITY_META[problem.severity];
+                const isAck = problem.acknowledged === "1";
                 return (
                   <li
-                    key={p.eventid}
-                    onClick={() => setSelected(p)}
-                    className="cursor-pointer p-4 transition-colors hover:bg-muted/40"
+                    key={problem.eventid}
+                    onClick={() => openIncident({ problem, hostName })}
+                    className="grid cursor-pointer grid-cols-[110px_180px_1fr_120px_120px_120px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/40"
                   >
-                    <div className="flex items-start gap-3">
-                      <SeverityPill tier={tier} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-foreground">{p.name}</p>
-                          <span className="font-mono text-[10px] text-muted-foreground">#{p.eventid}</span>
-                        </div>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {p.hostName ?? "—"} {p.opdata ? `· ${p.opdata}` : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <StatusPill status={status} />
-                        <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
-                          {ts.toLocaleString()}
-                        </span>
-                      </div>
+                    <span
+                      className={cn(
+                        "inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
+                        meta.cls,
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
+                      {meta.label}
+                    </span>
+                    <span className="truncate font-mono text-xs text-foreground" title={hostName}>
+                      {hostName}
+                    </span>
+                    <span className="truncate text-foreground" title={problem.name}>
+                      {problem.name}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {formatDuration(Number(problem.clock))}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                        isAck
+                          ? "bg-success/15 text-success ring-success/30"
+                          : "bg-warning/15 text-warning ring-warning/30",
+                      )}
+                    >
+                      {isAck ? "Acknowledged" : "Open"}
+                    </span>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openIncident({ problem, hostName });
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium hover:bg-muted"
+                      >
+                        Open
+                      </button>
                     </div>
                   </li>
                 );
               })}
             </ul>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {selected && (
-        <IncidentDrawer
-          problem={selected}
-          canAct={canAct}
-          acking={acking === selected.eventid}
-          onAck={() => ack(selected)}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      <IncidentDrawer
+        problem={selected?.problem ?? null}
+        hostName={selected?.hostName ?? "—"}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        onAcknowledged={() => fetchData(false)}
+      />
     </div>
   );
 };
 
-const Kpi = ({ label, value, accent }: { label: string; value: number; accent: "primary" | "destructive" | "info" }) => (
-  <div className="rounded-xl border border-border bg-card p-3">
-    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-    <p
-      className={cn(
-        "mt-1 font-mono text-2xl font-semibold tabular-nums",
-        accent === "destructive" && "text-destructive",
-        accent === "info" && "text-info",
-        accent === "primary" && "text-foreground",
-      )}
-    >
-      {value}
-    </p>
-  </div>
-);
-
-type DrawerTab = "overview" | "timeline";
-
-const REMEDIATION_STEPS = [
-  "Snapshot current state",
-  "Restart degraded service",
-  "Verify health probes recover",
-];
-
-const IncidentDrawer = ({
-  problem,
-  canAct,
-  acking,
-  onAck,
-  onClose,
+function SummaryCard({
+  label,
+  value,
+  tone,
+  Icon,
 }: {
-  problem: ZProblem;
-  canAct: boolean;
-  acking: boolean;
-  onAck: () => void;
-  onClose: () => void;
-}) => {
-  const { t } = useI18n();
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const tier = severityTier(problem.severity) as Tier;
-  const ts = new Date(parseInt(problem.clock, 10) * 1000);
-  const [tab, setTab] = useState<DrawerTab>("overview");
-  const host = problem.hostName ?? problem.hosts?.[0]?.name ?? "unknown";
-  const assetKey = host;
-  const { getPolicy } = useAiPolicies();
-  const currentPolicy = getPolicy(assetKey)?.policy ?? "off";
-  const audit = useAuditLog();
-  const kb = useIncidentKnowledge();
-  const { killed } = useKillSwitch();
-  const [remediating, setRemediating] = useState(false);
-
-  const { data: events = [], isLoading } = useZabbixEvents({
-    triggerIds: [problem.objectid],
-    limit: 50,
-    timeFrom: parseInt(problem.clock, 10) - 60 * 60 * 24 * 7,
-  });
-
-  const explainWithAi = () => {
-    audit.append({
-      actor: user?.email ?? "unknown",
-      kind: "ai-explain",
-      message: `Opened AI investigation for "${problem.name}"`,
-      meta: { eventId: problem.eventid, host },
-    });
-    const params = new URLSearchParams({
-      event: problem.eventid,
-      host,
-      trigger: problem.name,
-      severity: tier,
-      opdata: problem.opdata ?? "",
-      at: ts.toISOString(),
-    });
-    navigate(`/ai?${params.toString()}`);
-  };
-
-  const autoRemediate = async () => {
-    if (killed) {
-      toast({ title: "Kill switch engaged", description: "All AI remediation suspended.", variant: "destructive" });
-      return;
-    }
-    if (currentPolicy === "off") {
-      toast({
-        title: "AI Remediation not enabled",
-        description: `Set a policy for ${host} in AI Operations → AI Policies.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (currentPolicy === "approval") {
-      audit.append({
-        actor: user?.email ?? "unknown",
-        kind: "approval",
-        message: `Approved AI remediation for ${host}`,
-        meta: { eventId: problem.eventid },
-      });
-    }
-    setRemediating(true);
-    audit.append({
-      actor: "ai-copilot",
-      kind: "ai-remediate-plan",
-      message: `Generated remediation plan for ${host}`,
-      meta: { eventId: problem.eventid, steps: REMEDIATION_STEPS },
-    });
-    setTab("timeline");
-    for (const step of REMEDIATION_STEPS) {
-      await new Promise((r) => setTimeout(r, 700));
-      audit.append({
-        actor: currentPolicy === "autonomous" ? "ai-copilot" : user?.email ?? "unknown",
-        kind: "ai-remediate-execute",
-        message: step,
-        meta: { eventId: problem.eventid, host },
-      });
-    }
-    kb.upsert({
-      trigger: problem.name,
-      host,
-      symptoms: [problem.name],
-      rootCause: "Auto-detected by AIOps Copilot",
-      resolution: REMEDIATION_STEPS.join(" → "),
-      actions: REMEDIATION_STEPS,
-      outcome: "resolved",
-      confidence: 88,
-      source: "ai",
-    });
-    audit.append({
-      actor: "ai-copilot",
-      kind: "knowledge-write",
-      message: "Knowledge base updated",
-      meta: { eventId: problem.eventid },
-    });
-    setRemediating(false);
-    toast({ title: "Remediation complete", description: `${host} recovered. Knowledge base updated.` });
-  };
-
+  label: string;
+  value: number;
+  tone: "default" | "red" | "orange" | "yellow";
+  Icon: React.ComponentType<{ className?: string }>;
+}) {
+  const toneCls =
+    tone === "red"
+      ? "border-red-500/30 bg-red-500/5 text-red-500"
+      : tone === "orange"
+        ? "border-orange-500/30 bg-orange-500/5 text-orange-500"
+        : tone === "yellow"
+          ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-600"
+          : "border-border bg-card text-foreground";
   return (
-    <div className="fixed inset-0 z-50 flex">
-      <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <aside className="relative z-10 ml-auto flex h-full w-full max-w-xl flex-col border-l border-border bg-card shadow-elevated animate-slide-in-right">
-        <div className="flex items-start justify-between border-b border-border p-5">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-              {t("inc.detailsTitle")}
-            </p>
-            <h3 className="mt-1 truncate text-lg font-semibold text-foreground">{problem.name}</h3>
-            <p className="mt-0.5 flex items-center gap-2 font-mono text-xs text-muted-foreground">
-              event #{problem.eventid} · trigger #{problem.objectid}
-              <AiTrustBadge policy={currentPolicy} />
-            </p>
-          </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Action Center — 3 enterprise buttons */}
-        <div className="grid grid-cols-3 gap-2 border-b border-border p-3">
-          <button
-            onClick={onAck}
-            disabled={!canAct || acking || problem.acknowledged === "1"}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-glow disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {acking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-            {problem.acknowledged === "1" ? t("common.acknowledged") : t("common.acknowledge")}
-          </button>
-          <button
-            onClick={explainWithAi}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 py-2 text-xs font-semibold text-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary"
-          >
-            <Brain className="h-3.5 w-3.5" /> Explain with AI
-          </button>
-          <button
-            onClick={autoRemediate}
-            disabled={remediating || killed}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 py-2 text-xs font-semibold text-foreground transition-all hover:border-success hover:bg-success/5 hover:text-success disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {remediating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : killed ? <ShieldOff className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
-            Auto-Remediate
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-border px-3 pt-2">
-          {(["overview", "timeline"] as DrawerTab[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => setTab(k)}
-              className={cn(
-                "rounded-t-md border-b-2 px-3 py-1.5 text-[11px] font-semibold capitalize transition-colors",
-                tab === k
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 space-y-5 overflow-y-auto p-5">
-          {tab === "overview" && (
-            <>
-              <div className="flex items-center gap-2">
-                <SeverityPill tier={tier} />
-                <StatusPill status={problem.acknowledged === "1" ? "acknowledged" : "open"} />
-              </div>
-              <Field label="Host" value={host} />
-              <Field label="Operational data" value={problem.opdata || "—"} />
-              <Field label="Triggered at" value={ts.toLocaleString()} />
-
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
-                AI trust policy for <strong className="text-foreground">{host}</strong>:{" "}
-                <strong className="text-foreground capitalize">{currentPolicy}</strong>. Configure in{" "}
-                <button onClick={() => navigate("/aiops/policies")} className="text-primary underline">
-                  AI Operations → AI Policies
-                </button>
-                .
-              </div>
-
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Related events ({events.length})
-                </p>
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : events.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No related events.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {events.map((e) => (
-                      <li key={e.eventid} className="flex items-start gap-2 text-xs">
-                        <Zap className="mt-0.5 h-3.5 w-3.5 text-primary-glow" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium text-foreground">
-                            {e.name ?? (e.value === "1" ? "Problem raised" : "Problem recovered")}
-                          </p>
-                          <p className="font-mono text-[10px] text-muted-foreground">
-                            {new Date(parseInt(e.clock, 10) * 1000).toLocaleString()} · ack {e.acknowledged ?? "0"}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
-          )}
-
-          {tab === "timeline" && (
-            <div className="space-y-4">
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Resolution timeline
-                </p>
-                <IncidentAuditTimeline eventId={problem.eventid} />
-              </div>
-              {remediating && (
-                <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin text-primary" /> AI remediation in progress…
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      </aside>
+    <div className={cn("flex items-center justify-between rounded-xl border p-4", toneCls)}>
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
+        <p className="mt-1 text-3xl font-bold tabular-nums">{value}</p>
+      </div>
+      <Icon className="h-6 w-6 opacity-60" />
     </div>
   );
-};
-
-const Field = ({ label, value }: { label: string; value: string }) => (
-  <div>
-    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-    <p className="text-sm leading-relaxed text-foreground">{value}</p>
-  </div>
-);
-
-const SeverityPill = ({ tier }: { tier: Tier }) => {
-  const cls =
-    tier === "critical"
-      ? "bg-destructive/15 text-destructive ring-destructive/30"
-      : tier === "high"
-        ? "bg-warning/15 text-warning ring-warning/30"
-        : tier === "medium"
-          ? "bg-info/15 text-info ring-info/30"
-          : "bg-muted text-muted-foreground ring-border";
-  return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1", cls)}>
-      <AlertTriangle className="h-3 w-3" />
-      {tier}
-    </span>
-  );
-};
-
-const StatusPill = ({ status }: { status: Status }) => {
-  const cls =
-    status === "open"
-      ? "bg-destructive/10 text-destructive ring-destructive/20"
-      : status === "acknowledged"
-        ? "bg-info/10 text-info ring-info/20"
-        : "bg-success/10 text-success ring-success/20";
-  return (
-    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1", cls)}>
-      {status}
-    </span>
-  );
-};
-
-const FilterSelect = ({
-  label, value, onChange, options,
-}: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) => (
-  <label className="flex items-center gap-2 text-xs">
-    <span className="text-muted-foreground">{label}:</span>
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  </label>
-);
+}
 
 export default Incidents;

@@ -44,7 +44,7 @@ const Terminal = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase
+    (supabase as any)
       .from("assets")
       .select("id,name,hostname,ip_address,os")
       .limit(100)

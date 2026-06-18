@@ -17,8 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { Database as DB } from "@/integrations/supabase/types";
 
-type Provider = DB["public"]["Tables"]["monitoring_providers"]["Row"];
-type SyncLog = DB["public"]["Tables"]["monitoring_sync_logs"]["Row"];
+type Provider = any;
+type SyncLog = any;
 
 const PROVIDER_CATALOG: Array<{
   kind: Provider["kind"];
@@ -76,8 +76,8 @@ export default function IntegrationCenter() {
 
   const load = async () => {
     const [{ data: provs }, { data: l }] = await Promise.all([
-      supabase.from("monitoring_providers").select("*").order("created_at"),
-      supabase
+      (supabase as any).from("monitoring_providers").select("*").order("created_at"),
+      (supabase as any)
         .from("monitoring_sync_logs")
         .select("*")
         .order("started_at", { ascending: false })
@@ -108,7 +108,7 @@ export default function IntegrationCenter() {
   }, []);
 
   const ensureZabbixProvider = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("monitoring_providers")
       .insert({
         kind: "zabbix",

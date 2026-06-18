@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, GitBranch, ListChecks, Network, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Bell, Boxes, Code2, Database, ListChecks, Network, ScrollText, Sparkles, Workflow } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useApplication, useApplications, useAlertRules } from "@/hooks/useApplications";
 import { AppStatusBadge, HealthBar } from "@/components/applications/AppStatusBadge";
+import DatabasesPanel from "@/components/applications/DatabasesPanel";
+import { aggregateDbMetrics, generateAppInsights, generateTraces, getAppDatabases } from "@/lib/appDatabases";
 import { HOSTS } from "@/data/monitoringMock";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +31,10 @@ export default function ApplicationDetail() {
   const hosts = HOSTS.filter((h) => app.hostIds.includes(h.id));
   const appRules = rules.filter((r) => r.appId === app.id);
   const linkedApps = (id?: string) => all.find((a) => a.id === id);
+  const dbs = useMemo(() => getAppDatabases(app), [app]);
+  const dbAgg = useMemo(() => aggregateDbMetrics(dbs), [dbs]);
+  const insights = useMemo(() => generateAppInsights(app), [app]);
+  const traces = useMemo(() => generateTraces(app, dbs), [app, dbs]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -54,14 +60,33 @@ export default function ApplicationDetail() {
           <Stat label="P95 latency" value={`${app.latencyP95Ms}ms`} />
         </div>
 
+        <div className="rounded-xl border border-border bg-card/50 p-3">
+          <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Database className="h-3 w-3" />Database aggregation
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 font-mono normal-case tracking-normal">
+              {dbs.length === 0 ? "no database attached" : `${dbs.length} database${dbs.length > 1 ? "s" : ""}`}
+            </span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5">
+            <Stat label="Avg DB latency" value={`${dbAgg.avgLatencyMs}ms`} />
+            <Stat label="Total connections" value={`${dbAgg.totalConnections}`} />
+            <Stat label="Total QPS" value={dbAgg.totalQps.toLocaleString()} />
+            <Stat label="DB error rate" value={`${dbAgg.avgErrorRate}%`} tone={dbAgg.avgErrorRate > 3 ? "critical" : dbAgg.avgErrorRate > 1 ? "warning" : "success"} />
+            <Stat label="Worst DB status" value={dbAgg.worstStatus} tone={dbAgg.worstStatus === "critical" || dbAgg.worstStatus === "degraded" ? "critical" : dbAgg.worstStatus === "warning" ? "warning" : "success"} />
+          </div>
+        </div>
+
+
         <Tabs defaultValue="overview">
           <TabsList className="flex flex-wrap">
             <TabsTrigger value="overview"><Activity className="mr-1 h-3.5 w-3.5" />Overview</TabsTrigger>
             <TabsTrigger value="logs"><ScrollText className="mr-1 h-3.5 w-3.5" />Logs</TabsTrigger>
-            <TabsTrigger value="db"><Database className="mr-1 h-3.5 w-3.5" />Database</TabsTrigger>
+            <TabsTrigger value="db"><Database className="mr-1 h-3.5 w-3.5" />Databases{dbs.length ? ` (${dbs.length})` : ""}</TabsTrigger>
             <TabsTrigger value="jobs"><ListChecks className="mr-1 h-3.5 w-3.5" />Jobs</TabsTrigger>
             <TabsTrigger value="api"><Code2 className="mr-1 h-3.5 w-3.5" />API</TabsTrigger>
             <TabsTrigger value="infra"><Boxes className="mr-1 h-3.5 w-3.5" />Infrastructure</TabsTrigger>
+            <TabsTrigger value="traces"><Workflow className="mr-1 h-3.5 w-3.5" />Traces</TabsTrigger>
+            <TabsTrigger value="ai"><Sparkles className="mr-1 h-3.5 w-3.5" />AI Insights</TabsTrigger>
             <TabsTrigger value="incidents"><AlertTriangle className="mr-1 h-3.5 w-3.5" />Incidents</TabsTrigger>
             <TabsTrigger value="deps"><Network className="mr-1 h-3.5 w-3.5" />Dependencies</TabsTrigger>
             <TabsTrigger value="alerts"><Bell className="mr-1 h-3.5 w-3.5" />Alerts</TabsTrigger>
@@ -113,19 +138,9 @@ export default function ApplicationDetail() {
           </TabsContent>
 
           <TabsContent value="db">
-            {app.db ? (
-              <Card title={`${app.db.engine.toUpperCase()} · ${app.db.name}`}>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Uptime" value={`${app.db.uptimeDays}d`} />
-                  <Stat label="Connections" value={`${app.db.connections}/${app.db.maxConnections}`} />
-                  <Stat label="Slow queries" value={`${app.db.slowQueries}`} tone={app.db.slowQueries > 50 ? "critical" : app.db.slowQueries > 10 ? "warning" : "success"} />
-                  <Stat label="Locks" value={`${app.db.locks}`} />
-                  <Stat label="Replication lag" value={`${app.db.replicationLagMs}ms`} tone={app.db.replicationLagMs > 5000 ? "critical" : "success"} />
-                  <Stat label="Storage" value={`${app.db.storageUsedPct.toFixed(0)}%`} bar={app.db.storageUsedPct} />
-                </div>
-              </Card>
-            ) : <Card title="Database"><p className="py-6 text-center text-xs text-muted-foreground">No database attached to this application.</p></Card>}
+            <DatabasesPanel app={app} />
           </TabsContent>
+
 
           <TabsContent value="jobs">
             <Card title="Scheduled jobs / scripts">
@@ -187,6 +202,55 @@ export default function ApplicationDetail() {
               </ul>
             </Card>
           </TabsContent>
+
+          <TabsContent value="traces">
+            <Card title="Request traces (sampled)">
+              <ul className="space-y-3">
+                {traces.map((t) => (
+                  <li key={t.id} className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-mono">{t.endpoint}</span>
+                      <span className="text-muted-foreground text-[11px]">{new Date(t.sampledAt).toLocaleTimeString()} · total <span className="font-semibold text-foreground">{t.totalMs}ms</span></span>
+                    </div>
+                    <div className="mt-2 flex h-6 w-full overflow-hidden rounded bg-muted/40">
+                      {t.spans.map((s, i) => {
+                        const color = s.kind === "db" ? "bg-primary/70" : s.kind === "cache" ? "bg-secondary/70" : s.kind === "ext" ? "bg-warning/70" : "bg-success/70";
+                        const pct = (s.ms / t.totalMs) * 100;
+                        return <div key={i} className={cn(color, "flex items-center justify-center text-[10px] text-white")} style={{ width: `${pct}%` }} title={`${s.service} · ${s.ms}ms`}>{pct > 10 ? `${s.ms}ms` : ""}</div>;
+                      })}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+                      {t.spans.map((s, i) => <Badge key={i} variant="outline">{s.service} · {s.kind} · {s.ms}ms</Badge>)}
+                      <Badge variant="secondary">bottleneck: {t.bottleneck}</Badge>
+                    </div>
+                  </li>
+                ))}
+                {!traces.length && <li className="py-6 text-center text-xs text-muted-foreground">No traces sampled</li>}
+              </ul>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <Card title="AI insights">
+              <ul className="space-y-2">
+                {insights.map((i) => (
+                  <li key={i.id} className="rounded-lg border border-border/60 p-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Sparkles className={cn("h-3.5 w-3.5",
+                        i.severity === "critical" ? "text-destructive" :
+                        i.severity === "warning" ? "text-warning" : "text-primary")} />
+                      {i.title}
+                      <Badge variant={i.severity === "critical" ? "destructive" : "secondary"} className="ml-auto text-[10px]">{i.severity}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{i.detail}</p>
+                    <p className="mt-1 text-xs"><span className="font-semibold">Recommendation: </span>{i.recommendation}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </TabsContent>
+
+
 
           <TabsContent value="incidents">
             <Card title="Application incidents">
