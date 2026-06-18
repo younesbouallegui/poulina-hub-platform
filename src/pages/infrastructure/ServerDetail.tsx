@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Cpu, MemoryStick, HardDrive, Network, Activity, ScrollText,
+  ArrowLeft, Cpu, MemoryStick, HardDrive, Network, Activity,
   AlertTriangle, ServerCog, Wrench, ShieldCheck, Power, Brain, Radio,
   Database, Layers, Workflow, BookOpen, Sparkles, GitBranch, CheckCircle2,
-  XCircle, AlertOctagon, HelpCircle, Boxes,
+  XCircle, HelpCircle, Boxes,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
