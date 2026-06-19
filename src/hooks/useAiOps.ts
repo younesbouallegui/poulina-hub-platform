@@ -228,7 +228,7 @@ export function useEffectivePolicy(args: {
     }
 
     return { effective, tier, minConfidence: typePol.minConfidence, source, incidentType: typePol.type, reasons };
-  }, [args.confidence, args.eventId, args.hostKey, args.trigger, getAsset, getOverride, resolveForTrigger]);
+  }, [args.confidence, args.eventId, args.hostKey, args.trigger, getPolicy, getOverride, resolveForTrigger]);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
