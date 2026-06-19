@@ -187,13 +187,13 @@ export function useEffectivePolicy(args: {
   trigger: string;
   confidence: number;
 }): EffectivePolicy {
-  const { get: getAsset } = useAiPolicies();
+  const { getPolicy } = useAiPolicies();
   const { resolveForTrigger } = useIncidentTypePolicies();
   const { get: getOverride } = useIncidentOverrides();
 
   return useMemo(() => {
     const typePol = resolveForTrigger(args.trigger);
-    const asset = getAsset(args.hostKey);
+    const asset = getPolicy(args.hostKey);
     const override = getOverride(args.eventId);
     const reasons: string[] = [];
     reasons.push(`Incident classified as "${typePol.type}" → ${typePol.policy}`);
