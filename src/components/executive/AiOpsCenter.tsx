@@ -1,5 +1,6 @@
-import { Bot, CheckCircle2, Sparkles, Zap } from "lucide-react";
+import { Bot, CheckCircle2, Gauge, Shield, Sparkles, Zap } from "lucide-react";
 import { useAiOpsMetrics, useKillSwitch } from "@/hooks/useAiOps";
+import { cn } from "@/lib/utils";
 
 export const AiOpsCenter = () => {
   const m = useAiOpsMetrics();
@@ -14,7 +15,7 @@ export const AiOpsCenter = () => {
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">AIOps Command</p>
-            <p className="text-[10px] text-muted-foreground">Autonomous operations health</p>
+            <p className="text-[10px] text-muted-foreground">Autonomous operations governance</p>
           </div>
         </div>
         <button
@@ -30,14 +31,29 @@ export const AiOpsCenter = () => {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Stat icon={CheckCircle2} label="AI resolved" value={m.aiResolved} accent="success" />
-        <Stat icon={Sparkles} label="Success rate" value={`${m.successRate}%`} accent="primary" />
+        <Stat icon={Gauge} label="AI trust score" value={`${m.aiTrustScore}%`} accent="primary" />
+        <Stat icon={CheckCircle2} label="Success rate" value={`${m.successRate}%`} accent="success" />
         <Stat icon={Zap} label="Autonomous runs" value={m.autonomousRuns} accent="info" />
-        <Stat icon={Bot} label="Avg confidence" value={`${m.avgConfidence}%`} accent="primary" />
+        <Stat icon={Shield} label="Coverage" value={`${m.automationCoverage}%`} accent="primary" />
+        <Stat icon={Sparkles} label="Avg confidence" value={`${m.avgConfidence}%`} accent="primary" />
+        <Stat icon={Bot} label="AI resolved" value={m.aiResolved} accent="success" />
+      </div>
+
+      <div className="mt-3 space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Confidence distribution</p>
+        <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
+          {(["auto", "approve", "investigate"] as const).map((t) => {
+            const v = m.confidenceBuckets[t];
+            const total = Object.values(m.confidenceBuckets).reduce((s, n) => s + n, 0) || 1;
+            const pct = (v / total) * 100;
+            const cls = t === "auto" ? "bg-success" : t === "approve" ? "bg-warning" : "bg-info";
+            return <div key={t} className={cn("h-full", cls)} style={{ width: `${pct}%` }} />;
+          })}
+        </div>
       </div>
 
       <p className="mt-3 text-[10px] text-muted-foreground">
-        {m.explainCount} AI analyses · {m.approvals} approvals · {m.totalResolved} total resolved
+        {m.explainCount} analyses · {m.approvals} approvals · {m.failedRuns} failed · {m.totalResolved} resolved
       </p>
     </div>
   );
