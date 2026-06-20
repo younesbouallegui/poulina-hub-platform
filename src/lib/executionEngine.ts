@@ -304,24 +304,24 @@ export function useExecution(planId: string | undefined): UseExecutionApi {
       if (!current || !current.recovery) return;
 
       const startedAt = new Date().toISOString();
-      const reverseSteps: StepRecord[] = current.steps
-        .filter((s) => s.status === "success" && !s.id.endsWith("-backup"))
-        .reverse()
-        .map((s) => ({
-          id: `rb-${s.id}`,
-          name: `Revert: ${s.name}`,
-          description: `Restore previous state for ${s.name}`,
-          command: s.command ? `# revert: ${s.command}` : undefined,
-          status: "pending",
-        }))
-        .concat([
-          {
-            id: `rb-validate-${planId}`,
-            name: "Validate restoration",
-            description: "Verify services healthy and recovery point applied",
+      const reverseSteps: StepRecord[] = [
+        ...current.steps
+          .filter((s) => s.status === "success" && !s.id.endsWith("-backup"))
+          .reverse()
+          .map<StepRecord>((s) => ({
+            id: `rb-${s.id}`,
+            name: `Revert: ${s.name}`,
+            description: `Restore previous state for ${s.name}`,
+            command: s.command ? `# revert: ${s.command}` : undefined,
             status: "pending",
-          },
-        ]);
+          })),
+        {
+          id: `rb-validate-${planId}`,
+          name: "Validate restoration",
+          description: "Verify services healthy and recovery point applied",
+          status: "pending",
+        },
+      ];
 
       updateRecord(planId, (r) => ({
         ...r,
