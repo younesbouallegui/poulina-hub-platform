@@ -51,6 +51,7 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userData?.user) {
+      console.warn("[zabbix-token-mint] auth.getUser failed", userErr?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -58,6 +59,7 @@ Deno.serve(async (req) => {
     const meta = (userData.user.user_metadata ?? {}) as Record<string, unknown>;
     const zabbixUserId = String(meta.zabbix_userid ?? "");
     const zabbixUsername = String(meta.zabbix_username ?? "");
+    console.log("[zabbix-token-mint] caller", { sub: userData.user.id, zabbixUserId, zabbixUsername });
     if (!zabbixUserId) {
       return new Response(JSON.stringify({ error: "User is not linked to a Zabbix account" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
