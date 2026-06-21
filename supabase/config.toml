@@ -2,9 +2,3 @@ project_id = "duqxzfyuhdmsnweclnka"
 
 [functions.zabbix-auth]
 verify_jwt = false
-
-[functions.sso-issue]
-verify_jwt = false
-
-[functions.sso-redeem]
-verify_jwt = false

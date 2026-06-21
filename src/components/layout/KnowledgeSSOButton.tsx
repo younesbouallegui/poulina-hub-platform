@@ -1,41 +1,66 @@
 import { useState } from "react";
 import { BookOpenText, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuditLog } from "@/hooks/useAiOps";
 
+const KNOWLEDGE_ISSUE_URL =
+  "https://yweknqfqvjkxepivuufc.supabase.co/functions/v1/sso-issue";
 const KNOWLEDGE_RECEIVER_URL = "https://aiknowledge.younesblg.com/auth/sso";
 
 export const KnowledgeSSOButton = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, session } = useAuth();
   const { toast } = useToast();
   const audit = useAuditLog();
   const [loading, setLoading] = useState(false);
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated || !user) return null;
 
   const onClick = async () => {
     if (loading) return;
     setLoading(true);
     audit.append({
-      actor: user?.email ?? "user",
+      actor: user.email,
       kind: "policy-change",
       message: "SSO initiated → Poulina AI Knowledge",
     });
     try {
-      const { data, error } = await supabase.functions.invoke("sso-issue", {
-        body: { audience: "knowledge" },
+      const res = await fetch(KNOWLEDGE_ISSUE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body: JSON.stringify({
+          email: user.email,
+          name: user.name,
+          source: "poulina-ai-hub",
+        }),
       });
-      if (error) throw error;
-      const code = (data as { code?: string })?.code;
-      if (!code) throw new Error("No SSO code returned");
-      const url = `${KNOWLEDGE_RECEIVER_URL}?code=${encodeURIComponent(code)}&from=hub`;
-      window.location.href = url;
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || `Issue failed (${res.status})`);
+      }
+      const code: string | undefined = payload?.code ?? payload?.sso_code;
+      const redirect: string | undefined = payload?.redirect_url;
+      const target =
+        redirect ??
+        (code
+          ? `${KNOWLEDGE_RECEIVER_URL}?code=${encodeURIComponent(code)}&from=hub`
+          : null);
+      if (!target) throw new Error("No SSO code returned");
+      audit.append({
+        actor: user.email,
+        kind: "policy-change",
+        message: "SSO code minted, redirecting to Knowledge",
+      });
+      window.location.href = target;
     } catch (e) {
       const msg = (e as Error).message || "Failed to start SSO";
       audit.append({
-        actor: user?.email ?? "user",
+        actor: user.email,
         kind: "policy-change",
         message: `SSO handoff failed: ${msg}`,
       });
