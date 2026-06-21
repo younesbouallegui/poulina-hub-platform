@@ -10,7 +10,7 @@ const KNOWLEDGE_ISSUE_URL =
 const KNOWLEDGE_RECEIVER_URL = "https://aiknowledge.younesblg.com/auth/sso";
 
 export const KnowledgeSSOButton = () => {
-  const { isAuthenticated, user, session } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const audit = useAuditLog();
   const [loading, setLoading] = useState(false);
