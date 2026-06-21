@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { BookOpenText, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuditLog } from "@/hooks/useAiOps";
@@ -25,22 +26,27 @@ export const KnowledgeSSOButton = () => {
       message: "SSO initiated → Poulina AI Knowledge",
     });
     try {
+      // 1) Mint a fresh Zabbix API token for this user via the Hub.
+      const { data: mintData, error: mintErr } = await supabase.functions.invoke(
+        "zabbix-token-mint",
+        { body: {} },
+      );
+      if (mintErr) throw new Error(mintErr.message || "Failed to mint Zabbix token");
+      const { zabbix_token, zabbix_userid, zabbix_username } =
+        (mintData ?? {}) as { zabbix_token?: string; zabbix_userid?: string; zabbix_username?: string };
+      if (!zabbix_token) throw new Error("No Zabbix token returned");
+
+      // 2) Ask Knowledge to issue an SSO code for this user.
       const res = await fetch(KNOWLEDGE_ISSUE_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: user.email,
           name: user.name,
           source: "poulina-ai-hub",
-          zabbix_token: session?.access_token ?? "",
-          zabbix_userid: user.zabbixUserId ?? null,
-          zabbix_username: user.zabbixUsername ?? null,
-          access_token: session?.access_token ?? "",
+          zabbix_token,
+          zabbix_userid,
+          zabbix_username,
         }),
       });
       const payload = await res.json().catch(() => ({}));
