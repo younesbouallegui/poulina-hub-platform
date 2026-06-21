@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleGuard } from "@/components/RoleGuard";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Login from "./pages/Login";
+import AuthSSO from "./pages/AuthSSO";
 import Incidents from "./pages/Incidents";
 import Infrastructure from "./pages/Infrastructure";
 import InfrastructureOverview from "./pages/infrastructure/Overview";
@@ -69,6 +70,7 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/auth/sso" element={<AuthSSO />} />
                 <Route
                   element={
                     <ProtectedRoute>
