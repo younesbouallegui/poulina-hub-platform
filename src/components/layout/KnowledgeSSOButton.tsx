@@ -55,6 +55,7 @@ export const KnowledgeSSOButton = () => {
       if (!zabbix_token) throw new Error("Hub did not return a Zabbix token");
 
       // 2) Ask Knowledge to issue an SSO code for this user.
+      console.info("[SSO] Calling Knowledge sso-issue…");
       const res = await fetch(KNOWLEDGE_ISSUE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,10 +67,13 @@ export const KnowledgeSSOButton = () => {
           zabbix_userid,
           zabbix_username,
         }),
+      }).catch((e) => {
+        throw new Error(`Cannot reach Knowledge sso-issue: ${(e as Error).message}`);
       });
       const payload = await res.json().catch(() => ({}));
+      console.info("[SSO] Issue response", res.status, payload);
       if (!res.ok) {
-        throw new Error(payload?.error || `Issue failed (${res.status})`);
+        throw new Error(payload?.error || `Knowledge issue failed (${res.status})`);
       }
       const code: string | undefined = payload?.code ?? payload?.sso_code;
       const redirect: string | undefined = payload?.redirect_url;
@@ -84,6 +88,7 @@ export const KnowledgeSSOButton = () => {
         kind: "policy-change",
         message: "SSO code minted, redirecting to Knowledge",
       });
+      console.info("[SSO] Redirecting to", target);
       window.location.href = target;
     } catch (e) {
       const msg = (e as Error).message || "Failed to start SSO";
