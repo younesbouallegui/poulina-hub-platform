@@ -27,16 +27,35 @@ export const KnowledgeSSOButton = () => {
     });
     try {
       // 1) Mint a fresh Zabbix API token for this user via the Hub.
-      const { data: mintData, error: mintErr } = await supabase.functions.invoke(
-        "zabbix-token-mint",
-        { body: {} },
-      );
-      if (mintErr) throw new Error(mintErr.message || "Failed to mint Zabbix token");
-      const { zabbix_token, zabbix_userid, zabbix_username } =
-        (mintData ?? {}) as { zabbix_token?: string; zabbix_userid?: string; zabbix_username?: string };
-      if (!zabbix_token) throw new Error("No Zabbix token returned");
+      console.info("[SSO] Requesting Zabbix token mint from Hub…");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
+
+      const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-token-mint`;
+      const mintRes = await fetch(mintUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({}),
+      }).catch((e) => {
+        throw new Error(`Cannot reach Hub edge function: ${(e as Error).message}`);
+      });
+      const mintBody = await mintRes.json().catch(() => ({}));
+      console.info("[SSO] Mint response", mintRes.status, mintBody);
+      if (!mintRes.ok) {
+        throw new Error(mintBody?.error || `Token mint failed (${mintRes.status})`);
+      }
+      const { zabbix_token, zabbix_userid, zabbix_username } = mintBody as {
+        zabbix_token?: string; zabbix_userid?: string; zabbix_username?: string;
+      };
+      if (!zabbix_token) throw new Error("Hub did not return a Zabbix token");
 
       // 2) Ask Knowledge to issue an SSO code for this user.
+      console.info("[SSO] Calling Knowledge sso-issue…");
       const res = await fetch(KNOWLEDGE_ISSUE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,10 +67,13 @@ export const KnowledgeSSOButton = () => {
           zabbix_userid,
           zabbix_username,
         }),
+      }).catch((e) => {
+        throw new Error(`Cannot reach Knowledge sso-issue: ${(e as Error).message}`);
       });
       const payload = await res.json().catch(() => ({}));
+      console.info("[SSO] Issue response", res.status, payload);
       if (!res.ok) {
-        throw new Error(payload?.error || `Issue failed (${res.status})`);
+        throw new Error(payload?.error || `Knowledge issue failed (${res.status})`);
       }
       const code: string | undefined = payload?.code ?? payload?.sso_code;
       const redirect: string | undefined = payload?.redirect_url;
@@ -66,6 +88,7 @@ export const KnowledgeSSOButton = () => {
         kind: "policy-change",
         message: "SSO code minted, redirecting to Knowledge",
       });
+      console.info("[SSO] Redirecting to", target);
       window.location.href = target;
     } catch (e) {
       const msg = (e as Error).message || "Failed to start SSO";
