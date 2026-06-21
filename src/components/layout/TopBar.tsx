@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { KnowledgeSSOButton } from "./KnowledgeSSOButton";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -95,6 +96,8 @@ export const TopBar = ({ onMenuClick }: TopBarProps) => {
           </div>
         </div>
       </div>
+
+      <KnowledgeSSOButton />
 
       {/* Language */}
       <div className="relative" ref={langRef}>
