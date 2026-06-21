@@ -37,6 +37,10 @@ export const KnowledgeSSOButton = () => {
           email: user.email,
           name: user.name,
           source: "poulina-ai-hub",
+          zabbix_token: session?.access_token ?? "",
+          zabbix_userid: user.zabbixUserId ?? null,
+          zabbix_username: user.zabbixUsername ?? null,
+          access_token: session?.access_token ?? "",
         }),
       });
       const payload = await res.json().catch(() => ({}));
