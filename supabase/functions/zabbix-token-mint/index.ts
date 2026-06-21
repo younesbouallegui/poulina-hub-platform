@@ -31,9 +31,11 @@ async function zbx(method: string, params: unknown, auth: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  console.log("[zabbix-token-mint] invoked", { method: req.method });
   try {
     if (!ZBX_URL || !ZBX_TOKEN) {
-      return new Response(JSON.stringify({ error: "Zabbix is not configured" }), {
+      console.error("[zabbix-token-mint] missing ZABBIX_URL or ZABBIX_TOKEN");
+      return new Response(JSON.stringify({ error: "Zabbix is not configured on the server" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
