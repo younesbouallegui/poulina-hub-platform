@@ -18,12 +18,11 @@ const ALLOWED_ORIGINS = new Set([
 
 const isAllowedLocalhost = (origin: string) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 const isAllowedLovablePreview = (origin: string) => /^https:\/\/id-preview--[a-z0-9-]+\.lovable\.app$/.test(origin);
+const isAllowedOrigin = (origin: string) => !origin || ALLOWED_ORIGINS.has(origin) || isAllowedLocalhost(origin) || isAllowedLovablePreview(origin);
 
 function requestCorsHeaders(req: Request) {
   const origin = req.headers.get("Origin") ?? "";
-  const allowOrigin = origin && (ALLOWED_ORIGINS.has(origin) || isAllowedLocalhost(origin) || isAllowedLovablePreview(origin))
-    ? origin
-    : "*";
+  const allowOrigin = origin ? (isAllowedOrigin(origin) ? origin : "null") : "*";
   return {
     ...corsHeaders,
     "Access-Control-Allow-Origin": allowOrigin,
@@ -90,8 +89,17 @@ Deno.serve(async (req) => {
   });
 
   if (req.method === "OPTIONS") {
+    if (!isAllowedOrigin(origin)) {
+      console.warn("[hub-sso-redeem] preflight rejected", { requestId, origin });
+      return new Response(JSON.stringify({ error: "Origin not allowed" }), { status: 403, headers: requestCorsHeaders(req) });
+    }
     console.log("[hub-sso-redeem] preflight accepted", { requestId, origin });
     return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: requestCorsHeaders(req) });
+  }
+
+  if (!isAllowedOrigin(origin)) {
+    console.warn("[hub-sso-redeem] request rejected by CORS policy", { requestId, origin });
+    return json(req, { error: "Origin not allowed", request_id: requestId }, 403);
   }
 
   if (req.method === "GET" && url.pathname.endsWith("/sso/health")) {
