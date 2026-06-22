@@ -9,6 +9,24 @@ const KNOWLEDGE_ISSUE_URL =
   "https://yweknqfqvjkxepivuufc.supabase.co/functions/v1/sso-issue";
 const KNOWLEDGE_RECEIVER_URL = "https://aiknowledge.younesblg.com/auth/sso";
 
+const parseJson = async (res: Response) => {
+  const text = await res.text().catch(() => "");
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return { raw: text.slice(0, 500) };
+  }
+};
+
+const explainFetchFailure = (url: string, e: unknown) => {
+  const reason = e instanceof Error ? e.message : String(e);
+  return [
+    `Cannot reach Hub edge function: ${reason}`,
+    `URL: ${url}`,
+    "Likely causes: function not deployed to the Hub Supabase project, CORS preflight blocked, network/TLS failure, or a browser security policy.",
+  ].join("\n");
+};
+
 export const KnowledgeSSOButton = () => {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
@@ -33,6 +51,21 @@ export const KnowledgeSSOButton = () => {
       if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
       const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-token-mint`;
+      const healthUrl = `${mintUrl}/sso/health`;
+      console.info("[SSO] Checking Hub edge function connectivity…", { healthUrl });
+      const healthRes = await fetch(healthUrl, {
+        method: "GET",
+      }).catch((e) => {
+        throw new Error(explainFetchFailure(healthUrl, e));
+      });
+      const healthBody = await parseJson(healthRes);
+      console.info("[SSO] Hub health response", healthRes.status, healthBody);
+      if (!healthRes.ok || healthBody?.status !== "ok") {
+        throw new Error(
+          `Hub edge function health check failed (${healthRes.status}). ${healthBody?.error ?? healthBody?.message ?? "No status=ok response."}`,
+        );
+      }
+
       const mintRes = await fetch(mintUrl, {
         method: "POST",
         headers: {
@@ -40,14 +73,23 @@ export const KnowledgeSSOButton = () => {
           Authorization: `Bearer ${accessToken}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          source: "poulina-ai-hub",
+          redirect_url: KNOWLEDGE_RECEIVER_URL,
+          zabbix_userid: user.zabbixUserId,
+          zabbix_username: user.zabbixUsername,
+        }),
       }).catch((e) => {
-        throw new Error(`Cannot reach Hub edge function: ${(e as Error).message}`);
+        throw new Error(explainFetchFailure(mintUrl, e));
       });
-      const mintBody = await mintRes.json().catch(() => ({}));
+      const mintBody = await parseJson(mintRes);
       console.info("[SSO] Mint response", mintRes.status, mintBody);
       if (!mintRes.ok) {
-        throw new Error(mintBody?.error || `Token mint failed (${mintRes.status})`);
+        throw new Error(
+          mintBody?.error
+            ? `Token mint failed (${mintRes.status}): ${mintBody.error}${mintBody?.request_id ? ` [request ${mintBody.request_id}]` : ""}`
+            : `Token mint failed (${mintRes.status})`,
+        );
       }
       const { zabbix_token, zabbix_userid, zabbix_username } = mintBody as {
         zabbix_token?: string; zabbix_userid?: string; zabbix_username?: string;
@@ -70,8 +112,12 @@ export const KnowledgeSSOButton = () => {
       }).catch((e) => {
         throw new Error(`Cannot reach Knowledge sso-issue: ${(e as Error).message}`);
       });
-      const payload = await res.json().catch(() => ({}));
-      console.info("[SSO] Issue response", res.status, payload);
+      const payload = await parseJson(res);
+      console.info("[SSO] Issue response", res.status, {
+        ...payload,
+        code: payload?.code ? "[issued]" : undefined,
+        sso_code: payload?.sso_code ? "[issued]" : undefined,
+      });
       if (!res.ok) {
         throw new Error(payload?.error || `Knowledge issue failed (${res.status})`);
       }
