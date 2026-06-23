@@ -27,6 +27,8 @@ const explainFetchFailure = (url: string, e: unknown) => {
   ].join("\n");
 };
 
+const HUB_SSO_VERSION = "zabbix-auth-sso-token-mint-v3";
+
 export const KnowledgeSSOButton = () => {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
@@ -72,6 +74,11 @@ export const KnowledgeSSOButton = () => {
       const mintBody = await parseJson(mintRes);
       console.info("[SSO] Mint response", mintRes.status, mintBody);
       if (!mintRes.ok) {
+        if (mintRes.status === 400 && mintBody?.error === "username and password are required" && mintBody?.version !== HUB_SSO_VERSION) {
+          throw new Error(
+            "Hub edge function is reachable but is still running the old zabbix-auth deployment. Deploy supabase/functions/zabbix-auth/index.ts to project duqxzfyuhdmsnweclnka, then retry SSO.",
+          );
+        }
         throw new Error(
           mintBody?.error
             ? `Token mint failed (${mintRes.status}): ${mintBody.error}${mintBody?.request_id ? ` [request ${mintBody.request_id}]` : ""}`

@@ -5,10 +5,12 @@
 // / usergroup.get calls — the user's own password is never persisted.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const FUNCTION_VERSION = "zabbix-auth-sso-token-mint-v3";
 
 const ZBX_URL = Deno.env.get("ZABBIX_URL");
 const ZBX_TOKEN = Deno.env.get("ZABBIX_TOKEN");
@@ -42,22 +44,35 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-// build: sso-token-mint v2
+const envStatus = () => ({
+  SUPABASE_URL: Boolean(SUPABASE_URL),
+  SUPABASE_ANON_KEY: Boolean(Deno.env.get("SUPABASE_ANON_KEY")),
+  SUPABASE_SERVICE_ROLE_KEY: Boolean(SERVICE_KEY),
+  ZABBIX_URL: Boolean(ZBX_URL),
+  ZABBIX_TOKEN: Boolean(ZBX_TOKEN),
+});
+
+// build: sso-token-mint v3
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const url = new URL(req.url);
+    if (req.method === "GET" && url.searchParams.get("health") === "1") {
+      return json({ status: "ok", function: "zabbix-auth", version: FUNCTION_VERSION, env: envStatus() });
+    }
+
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "").trim();
 
-    if (!ZBX_URL || !ZBX_TOKEN) {
-      return new Response(JSON.stringify({ error: "Zabbix is not configured", action }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (action === "__version") {
+      return json({ status: "ok", function: "zabbix-auth", version: FUNCTION_VERSION, env: envStatus() });
     }
-
-
 
     if (action === "sso-token-mint") {
       const requestId = crypto.randomUUID();
+      if (!ZBX_URL || !ZBX_TOKEN) {
+        return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION, request_id: requestId }, 500);
+      }
       const authHeader = req.headers.get("Authorization") ?? "";
       if (!authHeader.startsWith("Bearer ")) {
         await createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
@@ -124,11 +139,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (!ZBX_URL || !ZBX_TOKEN) {
+      return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION }, 500);
+    }
+
     const username = String(body?.username || "").trim();
     const password = String(body?.password || "");
     if (!username || !password) {
-      return new Response(JSON.stringify({ error: "username and password are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ error: "username and password are required", action: action || "login", version: FUNCTION_VERSION }, 400);
     }
 
     // 1) Validate against Zabbix (user.login also returns a session token we discard)
