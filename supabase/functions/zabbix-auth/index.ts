@@ -3,7 +3,11 @@
 // Supabase session so the browser can sign in. The Zabbix admin bearer
 // token (ZABBIX_TOKEN) is used only for the post-login user.get / role.get
 // / usergroup.get calls — the user's own password is never persisted.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ZBX_URL = Deno.env.get("ZABBIX_URL");
