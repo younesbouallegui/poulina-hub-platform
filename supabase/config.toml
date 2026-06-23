@@ -3,7 +3,7 @@ project_id = "duqxzfyuhdmsnweclnka"
 [functions.zabbix-auth]
 verify_jwt = false
 
-[functions.zabbix-token-mint]
+[functions.sso-token-mint]
 verify_jwt = false
 
 [functions.sso-redeem]
