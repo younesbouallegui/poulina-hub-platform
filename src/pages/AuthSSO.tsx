@@ -52,13 +52,16 @@ export default function AuthSSO() {
     (async () => {
       audit.append({ actor: "sso", kind: "policy-change", message: "SSO redeem initiated" });
       try {
-        const healthUrl = `${KNOWLEDGE_REDEEM_URL}/sso/health`;
+        const healthUrl = `${KNOWLEDGE_REDEEM_URL}?health=1`;
         console.info("[SSO Receiver] Checking Hub receiver connectivity", { healthUrl });
         const healthRes = await fetch(healthUrl).catch((e) => {
           throw new Error(`Cannot reach Hub sso-redeem health endpoint: ${(e as Error).message}`);
         });
         const healthPayload = await parseJson(healthRes);
         console.info("[SSO Receiver] Health response", { status: healthRes.status, payload: healthPayload });
+        if (healthRes.status === 404) {
+          throw new Error(`Hub SSO receiver is not deployed or the URL is wrong (${healthRes.status}). Checked: ${healthUrl}`);
+        }
         if (!healthRes.ok || healthPayload?.status !== "ok") {
           throw new Error(`Hub SSO receiver health check failed (${healthRes.status})`);
         }

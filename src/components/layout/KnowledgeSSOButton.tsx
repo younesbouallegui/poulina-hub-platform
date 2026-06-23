@@ -51,7 +51,7 @@ export const KnowledgeSSOButton = () => {
       if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
       const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-token-mint`;
-      const healthUrl = `${mintUrl}/sso/health`;
+      const healthUrl = `${mintUrl}?health=1`;
       console.info("[SSO] Checking Hub edge function connectivity…", { healthUrl });
       const healthRes = await fetch(healthUrl, {
         method: "GET",
@@ -60,6 +60,11 @@ export const KnowledgeSSOButton = () => {
       });
       const healthBody = await parseJson(healthRes);
       console.info("[SSO] Hub health response", healthRes.status, healthBody);
+      if (healthRes.status === 404) {
+        throw new Error(
+          `Hub edge function is not deployed or the URL is wrong (${healthRes.status}). Checked: ${healthUrl}`,
+        );
+      }
       if (!healthRes.ok || healthBody?.status !== "ok") {
         throw new Error(
           `Hub edge function health check failed (${healthRes.status}). ${healthBody?.error ?? healthBody?.message ?? "No status=ok response."}`,

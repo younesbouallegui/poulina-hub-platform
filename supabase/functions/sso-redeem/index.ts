@@ -106,9 +106,9 @@ Deno.serve(async (req) => {
     return json(req, { error: "Origin not allowed", request_id: requestId }, 403);
   }
 
-  if (req.method === "GET" && url.pathname.endsWith("/sso/health")) {
+  if (req.method === "GET" && url.searchParams.get("health") === "1") {
     console.log("[hub-sso-redeem] health check ok", { requestId, origin, env: envStatus() });
-    return json(req, { status: "ok" });
+    return json(req, { status: "ok", function: "sso-redeem", request_id: requestId });
   }
 
   try {

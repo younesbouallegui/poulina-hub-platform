@@ -64,14 +64,14 @@ jobs:
               sleep 2
             done
           done
-          health=$(curl -s -o /tmp/zabbix-token-mint-health.json -w "%{http_code}" https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/zabbix-token-mint/sso/health \
+          health=$(curl -s -o /tmp/zabbix-token-mint-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/zabbix-token-mint?health=1" \
             -H "Origin: https://poulina-hub-spark.lovable.app")
           if [ "$health" != "200" ]; then
             echo "zabbix-token-mint health check failed (HTTP ${health})"
             cat /tmp/zabbix-token-mint-health.json
             exit 1
           fi
-          redeem_health=$(curl -s -o /tmp/sso-redeem-health.json -w "%{http_code}" https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/sso-redeem/sso/health \
+          redeem_health=$(curl -s -o /tmp/sso-redeem-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/sso-redeem?health=1" \
             -H "Origin: https://poulina-hub-spark.lovable.app")
           if [ "$redeem_health" != "200" ]; then
             echo "sso-redeem health check failed (HTTP ${redeem_health})"
