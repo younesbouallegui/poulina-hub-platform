@@ -41,15 +41,17 @@ jobs:
           fi
           supabase functions deploy zabbix-auth --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy zabbix-connector --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
+          supabase functions deploy sso-token-mint --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy sso-redeem --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy incident-ai --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy ask-stream --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
 
       - name: Verify deployed edge functions are reachable
         run: |
-          for fn in zabbix-auth zabbix-connector sso-redeem incident-ai ask-stream; do
+          BASE=https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1
+          for fn in zabbix-auth zabbix-connector sso-token-mint sso-redeem incident-ai ask-stream; do
             for i in $(seq 1 30); do
-              status=$(curl -s -o /tmp/${fn}.json -w "%{http_code}" -X OPTIONS https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/${fn} \
+              status=$(curl -s -o /tmp/${fn}.json -w "%{http_code}" -X OPTIONS ${BASE}/${fn} \
                 -H "Origin: https://poulina-hub-spark.lovable.app" \
                 -H "Access-Control-Request-Method: POST" \
                 -H "Access-Control-Request-Headers: authorization,apikey,content-type")
@@ -65,20 +67,14 @@ jobs:
               sleep 2
             done
           done
-          redeem_health=$(curl -s -o /tmp/sso-redeem-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/sso-redeem?health=1" \
-            -H "Origin: https://poulina-hub-spark.lovable.app")
-          if [ "$redeem_health" != "200" ]; then
-            echo "sso-redeem health check failed (HTTP ${redeem_health})"
-            cat /tmp/sso-redeem-health.json
-            exit 1
-          fi
-          auth_health=$(curl -s -o /tmp/zabbix-auth-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/zabbix-auth?health=1" \
-            -H "Origin: https://poulina-hub-spark.lovable.app")
-          if [ "$auth_health" != "200" ] || ! grep -q "zabbix-auth-sso-token-mint-v3" /tmp/zabbix-auth-health.json; then
-            echo "zabbix-auth deployed version check failed (HTTP ${auth_health})"
-            cat /tmp/zabbix-auth-health.json
-            exit 1
-          fi
+          for fn in sso-token-mint sso-redeem; do
+            health=$(curl -s -o /tmp/${fn}-health.json -w "%{http_code}" "${BASE}/${fn}?health=1")
+            if [ "$health" != "200" ] || ! grep -q '"version":"sso-v1"' /tmp/${fn}-health.json; then
+              echo "${fn} health/version check failed (HTTP ${health})"
+              cat /tmp/${fn}-health.json
+              exit 1
+            fi
+          done
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

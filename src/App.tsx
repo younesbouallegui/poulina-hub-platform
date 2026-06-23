@@ -56,6 +56,7 @@ import AIPolicies from "./pages/aiops/Policies";
 import AIKnowledgeBase from "./pages/aiops/KnowledgeBase";
 import AIAutomationHistory from "./pages/aiops/AutomationHistory";
 import NotFound from "./pages/NotFound";
+import SsoDiagnostics from "./pages/diagnostics/SsoDiagnostics";
 
 const queryClient = new QueryClient();
 
@@ -177,6 +178,7 @@ const App = () => (
                       </RoleGuard>
                     }
                   />
+                  <Route path="/diagnostics/sso" element={<SsoDiagnostics />} />
                 </Route>
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
