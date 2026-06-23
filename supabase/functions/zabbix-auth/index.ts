@@ -56,12 +56,20 @@ const envStatus = () => ({
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const url = new URL(req.url);
+    if (req.method === "GET" && url.searchParams.get("health") === "1") {
+      return json({ status: "ok", function: "zabbix-auth", version: FUNCTION_VERSION, env: envStatus() });
+    }
+
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "").trim();
 
+    if (action === "__version") {
+      return json({ status: "ok", function: "zabbix-auth", version: FUNCTION_VERSION, env: envStatus() });
+    }
+
     if (!ZBX_URL || !ZBX_TOKEN) {
-      return new Response(JSON.stringify({ error: "Zabbix is not configured", action }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION }, 500);
     }
 
 
@@ -137,8 +145,7 @@ Deno.serve(async (req) => {
     const username = String(body?.username || "").trim();
     const password = String(body?.password || "");
     if (!username || !password) {
-      return new Response(JSON.stringify({ error: "username and password are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return json({ error: "username and password are required", action: action || "login", version: FUNCTION_VERSION }, 400);
     }
 
     // 1) Validate against Zabbix (user.login also returns a session token we discard)
