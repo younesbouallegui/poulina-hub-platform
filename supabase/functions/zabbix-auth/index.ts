@@ -52,7 +52,7 @@ const envStatus = () => ({
   ZABBIX_TOKEN: Boolean(ZBX_TOKEN),
 });
 
-// build: sso-token-mint v2
+// build: sso-token-mint v3
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -68,14 +68,11 @@ Deno.serve(async (req) => {
       return json({ status: "ok", function: "zabbix-auth", version: FUNCTION_VERSION, env: envStatus() });
     }
 
-    if (!ZBX_URL || !ZBX_TOKEN) {
-      return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION }, 500);
-    }
-
-
-
     if (action === "sso-token-mint") {
       const requestId = crypto.randomUUID();
+      if (!ZBX_URL || !ZBX_TOKEN) {
+        return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION, request_id: requestId }, 500);
+      }
       const authHeader = req.headers.get("Authorization") ?? "";
       if (!authHeader.startsWith("Bearer ")) {
         await createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
@@ -140,6 +137,10 @@ Deno.serve(async (req) => {
         expires_at: expires,
         request_id: requestId,
       });
+    }
+
+    if (!ZBX_URL || !ZBX_TOKEN) {
+      return json({ error: "Zabbix is not configured", action, version: FUNCTION_VERSION }, 500);
     }
 
     const username = String(body?.username || "").trim();
