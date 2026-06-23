@@ -32,6 +32,12 @@ async function zbx(method: string, params: unknown, auth?: string) {
 const deterministicEmail = (userid: string, real?: string | null) =>
   real && real.includes("@") ? real.toLowerCase() : `zbx-${userid}@zabbix.local`;
 
+const json = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -41,6 +47,76 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    const action = String(body?.action || "").trim();
+
+    if (action === "sso-token-mint") {
+      const requestId = crypto.randomUUID();
+      const authHeader = req.headers.get("Authorization") ?? "";
+      if (!authHeader.startsWith("Bearer ")) {
+        await createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+          .from("identity_audit")
+          .insert({ action: "sso_failed", actor_username: "unknown", metadata: { request_id: requestId, reason: "missing_bearer" }, source: "sso" });
+        return json({ error: "Unauthorized", request_id: requestId }, 401);
+      }
+
+      const anon = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      });
+      const { data: userData, error: userErr } = await anon.auth.getUser();
+      if (userErr || !userData?.user) {
+        return json({ error: "Unauthorized", request_id: requestId }, 401);
+      }
+
+      const meta = (userData.user.user_metadata ?? {}) as Record<string, unknown>;
+      const zabbixUserId = String(meta.zabbix_userid ?? body?.zabbix_userid ?? "");
+      const zabbixUsername = String(meta.zabbix_username ?? body?.zabbix_username ?? userData.user.email ?? "");
+      const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+      await admin.from("identity_audit").insert({
+        actor_auth_user_id: userData.user.id,
+        actor_zabbix_userid: zabbixUserId || null,
+        actor_username: zabbixUsername,
+        action: "sso_initiated",
+        target_zabbix_userid: zabbixUserId || null,
+        target_username: zabbixUsername,
+        metadata: { request_id: requestId, destination: body?.redirect_url ?? "poulina-ai-knowledge" },
+        source: "sso",
+      });
+      if (!zabbixUserId) {
+        await admin.from("identity_audit").insert({
+          actor_auth_user_id: userData.user.id,
+          actor_username: zabbixUsername,
+          action: "sso_failed",
+          metadata: { request_id: requestId, reason: "missing_zabbix_userid" },
+          source: "sso",
+        });
+        return json({ error: "User is not linked to a Zabbix account", request_id: requestId }, 400);
+      }
+
+      const expires = Math.floor(Date.now() / 1000) + 120;
+      const tokenName = `sso-handoff-${userData.user.id}-${Date.now()}`;
+      const created = await zbx("token.create", [{
+        name: tokenName,
+        userid: zabbixUserId,
+        expires_at: expires,
+        status: "0",
+        description: "One-time SSO handoff token (Poulina AI Hub → Knowledge)",
+      }], ZBX_TOKEN) as { tokenids?: string[] };
+      const tokenid = created?.tokenids?.[0];
+      if (!tokenid) throw new Error("token.create did not return a tokenid");
+      const generated = await zbx("token.generate", [tokenid], ZBX_TOKEN) as Array<{ token?: string }>;
+      const zabbix_token = generated?.[0]?.token;
+      if (!zabbix_token) throw new Error("token.generate did not return a token");
+
+      return json({
+        zabbix_token,
+        zabbix_userid: zabbixUserId,
+        zabbix_username: zabbixUsername,
+        expires_at: expires,
+        request_id: requestId,
+      });
+    }
+
     const username = String(body?.username || "").trim();
     const password = String(body?.password || "");
     if (!username || !password) {

@@ -38,7 +38,6 @@ jobs:
         run: |
           supabase functions deploy zabbix-auth --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy zabbix-connector --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
-          supabase functions deploy zabbix-token-mint --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy sso-redeem --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy incident-ai --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
           supabase functions deploy ask-stream --project-ref duqxzfyuhdmsnweclnka --no-verify-jwt
@@ -46,7 +45,7 @@ jobs:
       - name: Verify deployed edge functions are reachable
         if: env.HAS_SUPABASE_TOKEN == 'true'
         run: |
-          for fn in zabbix-auth zabbix-connector zabbix-token-mint sso-redeem incident-ai ask-stream; do
+          for fn in zabbix-auth zabbix-connector sso-redeem incident-ai ask-stream; do
             for i in $(seq 1 30); do
               status=$(curl -s -o /tmp/${fn}.json -w "%{http_code}" -X OPTIONS https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/${fn} \
                 -H "Origin: https://poulina-hub-spark.lovable.app" \
@@ -64,13 +63,6 @@ jobs:
               sleep 2
             done
           done
-          health=$(curl -s -o /tmp/zabbix-token-mint-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/zabbix-token-mint?health=1" \
-            -H "Origin: https://poulina-hub-spark.lovable.app")
-          if [ "$health" != "200" ]; then
-            echo "zabbix-token-mint health check failed (HTTP ${health})"
-            cat /tmp/zabbix-token-mint-health.json
-            exit 1
-          fi
           redeem_health=$(curl -s -o /tmp/sso-redeem-health.json -w "%{http_code}" "https://duqxzfyuhdmsnweclnka.supabase.co/functions/v1/sso-redeem?health=1" \
             -H "Origin: https://poulina-hub-spark.lovable.app")
           if [ "$redeem_health" != "200" ]; then
@@ -82,7 +74,7 @@ jobs:
       - name: Warn if Supabase deploy was skipped
         if: env.HAS_SUPABASE_TOKEN != 'true'
         run: |
-          echo "::warning title=Supabase deploy skipped::SUPABASE_ACCESS_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions to enable automatic edge-function deployment for zabbix-auth, zabbix-connector, zabbix-token-mint, sso-redeem, incident-ai, and ask-stream."
+          echo "::warning title=Supabase deploy skipped::SUPABASE_ACCESS_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions to enable automatic edge-function deployment for zabbix-auth, zabbix-connector, sso-redeem, incident-ai, and ask-stream."
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

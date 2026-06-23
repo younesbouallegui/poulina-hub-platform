@@ -50,26 +50,7 @@ export const KnowledgeSSOButton = () => {
       const accessToken = sessionData?.session?.access_token;
       if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
-      const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-token-mint`;
-      const healthUrl = `${mintUrl}?health=1`;
-      console.info("[SSO] Checking Hub edge function connectivity…", { healthUrl });
-      const healthRes = await fetch(healthUrl, {
-        method: "GET",
-      }).catch((e) => {
-        throw new Error(explainFetchFailure(healthUrl, e));
-      });
-      const healthBody = await parseJson(healthRes);
-      console.info("[SSO] Hub health response", healthRes.status, healthBody);
-      if (healthRes.status === 404) {
-        throw new Error(
-          `Hub edge function is not deployed or the URL is wrong (${healthRes.status}). Checked: ${healthUrl}`,
-        );
-      }
-      if (!healthRes.ok || healthBody?.status !== "ok") {
-        throw new Error(
-          `Hub edge function health check failed (${healthRes.status}). ${healthBody?.error ?? healthBody?.message ?? "No status=ok response."}`,
-        );
-      }
+      const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-auth`;
 
       const mintRes = await fetch(mintUrl, {
         method: "POST",
@@ -79,6 +60,7 @@ export const KnowledgeSSOButton = () => {
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({
+          action: "sso-token-mint",
           source: "poulina-ai-hub",
           redirect_url: KNOWLEDGE_RECEIVER_URL,
           zabbix_userid: user.zabbixUserId,
