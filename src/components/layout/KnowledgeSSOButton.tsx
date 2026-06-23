@@ -5,30 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuditLog } from "@/hooks/useAiOps";
 
-const KNOWLEDGE_ISSUE_URL =
-  "https://yweknqfqvjkxepivuufc.supabase.co/functions/v1/sso-issue";
-const KNOWLEDGE_RECEIVER_URL = "https://aiknowledge.younesblg.com/auth/sso";
-
-const parseJson = async (res: Response) => {
-  const text = await res.text().catch(() => "");
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    return { raw: text.slice(0, 500) };
-  }
-};
-
-const explainFetchFailure = (url: string, e: unknown) => {
-  const reason = e instanceof Error ? e.message : String(e);
-  return [
-    `Cannot reach Hub edge function: ${reason}`,
-    `URL: ${url}`,
-    "Likely causes: function not deployed to the Hub Supabase project, CORS preflight blocked, network/TLS failure, or a browser security policy.",
-  ].join("\n");
-};
-
-const HUB_SSO_VERSION = "zabbix-auth-sso-token-mint-v3";
-
 export const KnowledgeSSOButton = () => {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
@@ -46,90 +22,30 @@ export const KnowledgeSSOButton = () => {
       message: "SSO initiated → Poulina AI Knowledge",
     });
     try {
-      // 1) Mint a fresh Zabbix API token for this user via the Hub.
-      console.info("[SSO] Requesting Zabbix token mint from Hub…");
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
       if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
 
-      const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/zabbix-auth`;
-
-      const mintRes = await fetch(mintUrl, {
+      const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sso-token-mint`;
+      const res = await fetch(mintUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({
-          action: "sso-token-mint",
-          source: "poulina-ai-hub",
-          redirect_url: KNOWLEDGE_RECEIVER_URL,
-          zabbix_userid: user.zabbixUserId,
-          zabbix_username: user.zabbixUsername,
-        }),
-      }).catch((e) => {
-        throw new Error(explainFetchFailure(mintUrl, e));
+        body: JSON.stringify({ target: "knowledge" }),
       });
-      const mintBody = await parseJson(mintRes);
-      console.info("[SSO] Mint response", mintRes.status, mintBody);
-      if (!mintRes.ok) {
-        if (mintRes.status === 400 && mintBody?.error === "username and password are required" && mintBody?.version !== HUB_SSO_VERSION) {
-          throw new Error(
-            "Hub edge function is reachable but is still running the old zabbix-auth deployment. Deploy supabase/functions/zabbix-auth/index.ts to project duqxzfyuhdmsnweclnka, then retry SSO.",
-          );
-        }
-        throw new Error(
-          mintBody?.error
-            ? `Token mint failed (${mintRes.status}): ${mintBody.error}${mintBody?.request_id ? ` [request ${mintBody.request_id}]` : ""}`
-            : `Token mint failed (${mintRes.status})`,
-        );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.redirect_url) {
+        throw new Error(body?.error || `SSO mint failed (${res.status})`);
       }
-      const { zabbix_token, zabbix_userid, zabbix_username } = mintBody as {
-        zabbix_token?: string; zabbix_userid?: string; zabbix_username?: string;
-      };
-      if (!zabbix_token) throw new Error("Hub did not return a Zabbix token");
-
-      // 2) Ask Knowledge to issue an SSO code for this user.
-      console.info("[SSO] Calling Knowledge sso-issue…");
-      const res = await fetch(KNOWLEDGE_ISSUE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          name: user.name,
-          source: "poulina-ai-hub",
-          zabbix_token,
-          zabbix_userid,
-          zabbix_username,
-        }),
-      }).catch((e) => {
-        throw new Error(`Cannot reach Knowledge sso-issue: ${(e as Error).message}`);
-      });
-      const payload = await parseJson(res);
-      console.info("[SSO] Issue response", res.status, {
-        ...payload,
-        code: payload?.code ? "[issued]" : undefined,
-        sso_code: payload?.sso_code ? "[issued]" : undefined,
-      });
-      if (!res.ok) {
-        throw new Error(payload?.error || `Knowledge issue failed (${res.status})`);
-      }
-      const code: string | undefined = payload?.code ?? payload?.sso_code;
-      const redirect: string | undefined = payload?.redirect_url;
-      const target =
-        redirect ??
-        (code
-          ? `${KNOWLEDGE_RECEIVER_URL}?code=${encodeURIComponent(code)}&from=hub`
-          : null);
-      if (!target) throw new Error("No SSO code returned");
       audit.append({
         actor: user.email,
         kind: "policy-change",
-        message: "SSO code minted, redirecting to Knowledge",
+        message: "SSO token minted, redirecting to Knowledge",
       });
-      console.info("[SSO] Redirecting to", target);
-      window.location.href = target;
+      window.location.href = body.redirect_url as string;
     } catch (e) {
       const msg = (e as Error).message || "Failed to start SSO";
       audit.append({
