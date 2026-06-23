@@ -2,8 +2,12 @@
 // authenticated Hub user, so it can be handed off to Poulina AI Knowledge for
 // SSO. Uses the admin ZABBIX_TOKEN to call token.create / token.generate on
 // behalf of the user identified by their Supabase session metadata.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 const ZBX_URL = Deno.env.get("ZABBIX_URL");
 const ZBX_TOKEN = Deno.env.get("ZABBIX_TOKEN");
