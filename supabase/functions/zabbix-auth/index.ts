@@ -38,16 +38,19 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// build: sso-token-mint v2
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    const body = await req.json().catch(() => ({}));
+    const action = String(body?.action || "").trim();
+
     if (!ZBX_URL || !ZBX_TOKEN) {
-      return new Response(JSON.stringify({ error: "Zabbix is not configured" }),
+      return new Response(JSON.stringify({ error: "Zabbix is not configured", action }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const action = String(body?.action || "").trim();
+
 
     if (action === "sso-token-mint") {
       const requestId = crypto.randomUUID();
