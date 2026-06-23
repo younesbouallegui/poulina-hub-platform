@@ -5,10 +5,12 @@
 // / usergroup.get calls — the user's own password is never persisted.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const FUNCTION_VERSION = "zabbix-auth-sso-token-mint-v3";
 
 const ZBX_URL = Deno.env.get("ZABBIX_URL");
 const ZBX_TOKEN = Deno.env.get("ZABBIX_TOKEN");
@@ -41,6 +43,14 @@ const json = (body: Record<string, unknown>, status = 200) =>
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+const envStatus = () => ({
+  SUPABASE_URL: Boolean(SUPABASE_URL),
+  SUPABASE_ANON_KEY: Boolean(Deno.env.get("SUPABASE_ANON_KEY")),
+  SUPABASE_SERVICE_ROLE_KEY: Boolean(SERVICE_KEY),
+  ZABBIX_URL: Boolean(ZBX_URL),
+  ZABBIX_TOKEN: Boolean(ZBX_TOKEN),
+});
 
 // build: sso-token-mint v2
 Deno.serve(async (req) => {
