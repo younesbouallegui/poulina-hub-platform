@@ -22,9 +22,27 @@ export const KnowledgeSSOButton = () => {
       message: "SSO initiated → Poulina AI Knowledge",
     });
     try {
+      // Guard: re-verify a live Supabase session AND user before minting.
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (!accessToken || userErr || !userData?.user) {
+        toast({
+          title: "Please sign in again",
+          description: "Your Hub session has expired. Redirecting to login…",
+          variant: "destructive",
+        });
+        setLoading(false);
+        window.location.href = "/login?next=/";
+        return;
+      }
+      const meta = (userData.user.user_metadata ?? {}) as Record<string, unknown>;
+      if (!meta.zabbix_userid || !meta.zabbix_username) {
+        throw new Error(
+          "Your Hub account is not linked to a Zabbix identity. Please sign out and sign in again with your Zabbix credentials.",
+        );
+      }
+
 
       const mintUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sso-token-mint`;
       const res = await fetch(mintUrl, {
