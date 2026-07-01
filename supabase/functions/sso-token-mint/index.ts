@@ -73,15 +73,32 @@ Deno.serve(async (req) => {
     });
     const { data: userData, error: userErr } = await userClient.auth.getUser();
     if (userErr || !userData?.user) {
+      console.warn("[sso-token-mint] no authenticated user", { requestId, reason: userErr?.message });
       return json({ error: "Invalid or expired Hub session", request_id: requestId }, 401);
     }
     const sbUser = userData.user;
     const meta = (sbUser.user_metadata ?? {}) as Record<string, unknown>;
+    console.log("[sso-token-mint] resolved caller", {
+      requestId,
+      user_id: sbUser.id,
+      email: sbUser.email,
+      meta_keys: Object.keys(meta),
+    });
 
     const zabbixUserId = String(meta.zabbix_userid ?? "");
     const zabbixUsername = String(meta.zabbix_username ?? sbUser.email?.split("@")[0] ?? "");
     if (!zabbixUserId || !zabbixUsername) {
-      return json({ error: "Caller is not linked to a Zabbix identity", request_id: requestId }, 422);
+      const missing = [
+        !zabbixUserId && "zabbix_userid",
+        !zabbixUsername && "zabbix_username",
+      ].filter(Boolean);
+      console.warn("[sso-token-mint] caller missing Zabbix identity metadata", {
+        requestId, user_id: sbUser.id, missing,
+      });
+      return json({
+        error: `Caller is not linked to a Zabbix identity (missing: ${missing.join(", ")})`,
+        request_id: requestId,
+      }, 422);
     }
     const name = String(meta.full_name ?? zabbixUsername);
 
