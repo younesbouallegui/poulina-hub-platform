@@ -1,10 +1,1 @@
-project_id = "duqxzfyuhdmsnweclnka"
-
-[functions.zabbix-auth]
-verify_jwt = false
-
-[functions.sso-token-mint]
-verify_jwt = false
-
-[functions.sso-redeem]
-verify_jwt = false
+project_id = "jrnneqvvgcqrludeutgt"
