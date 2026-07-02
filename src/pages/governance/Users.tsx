@@ -55,6 +55,12 @@ const Users = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ZUserRow | null>(null);
   const [resetTarget, setResetTarget] = useState<ZUserRow | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ZUserRow | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+
 
   const load = async () => {
     const [u, r, g, m] = await Promise.all([
