@@ -241,7 +241,7 @@ const Users = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u) => {
+                {paged.map((u) => {
                   const role = roleFor(u);
                   const userGroups = groupNamesFor(u.zabbix_userid);
                   const isBusy = busyId === u.zabbix_userid;
