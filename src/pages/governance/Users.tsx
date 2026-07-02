@@ -309,14 +309,11 @@ const Users = () => {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => {
-                                  if (confirm(`Delete Zabbix user '${u.username}'? This cannot be undone.`)) {
-                                    callUserAction("delete", { userid: u.zabbix_userid }, "User deleted");
-                                  }
-                                }}
+                                onClick={() => setRemoveTarget(u)}
                               >
-                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Remove…
                               </DropdownMenuItem>
+
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
