@@ -132,8 +132,10 @@ const App = () => (
                   <Route path="/aiops/knowledge" element={<AIKnowledgeBase />} />
                   <Route path="/aiops/history" element={<AIAutomationHistory />} />
                   <Route path="/governance/users" element={<GovernanceUsers />} />
+                  <Route path="/governance/groups" element={<GovernanceUserGroups />} />
                   <Route path="/governance/departments" element={<GovernanceDepartments />} />
                   <Route path="/governance/audit" element={<GovernanceAuditLog />} />
+
 
 
                   <Route
