@@ -9,6 +9,8 @@ import {
   ChevronLeft,
   ChevronDown,
   ShieldCheck,
+  Shield,
+
   X,
   Lock,
   Bell,
