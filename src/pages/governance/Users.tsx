@@ -367,8 +367,15 @@ const Users = () => {
           setResetTarget(null);
         }}
       />
+      <RemoveUserDialog
+        target={removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onDisable={async () => { if (!removeTarget) return; await callUserAction("disable", { userid: removeTarget.zabbix_userid }, "User disabled"); setRemoveTarget(null); }}
+        onDelete={async () => { if (!removeTarget) return; await callUserAction("delete", { userid: removeTarget.zabbix_userid }, "User deleted"); setRemoveTarget(null); }}
+      />
     </div>
   );
+
 };
 
 const Kpi = ({ icon: Icon, label, value, accent }: { icon: any; label: string; value: number; accent?: boolean }) => (
