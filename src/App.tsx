@@ -129,30 +129,10 @@ const App = () => (
                   <Route path="/aiops/policies" element={<AIPolicies />} />
                   <Route path="/aiops/knowledge" element={<AIKnowledgeBase />} />
                   <Route path="/aiops/history" element={<AIAutomationHistory />} />
-                  <Route
-                    path="/governance/users"
-                    element={
-                      <RoleGuard allow={["super_admin", "admin"]}>
-                        <GovernanceUsers />
-                      </RoleGuard>
-                    }
-                  />
-                  <Route
-                    path="/governance/departments"
-                    element={
-                      <RoleGuard allow={["super_admin", "admin"]}>
-                        <GovernanceDepartments />
-                      </RoleGuard>
-                    }
-                  />
-                  <Route
-                    path="/governance/audit"
-                    element={
-                      <RoleGuard allow={["super_admin", "admin", "auditor"]}>
-                        <GovernanceAuditLog />
-                      </RoleGuard>
-                    }
-                  />
+                  <Route path="/governance/users" element={<GovernanceUsers />} />
+                  <Route path="/governance/departments" element={<GovernanceDepartments />} />
+                  <Route path="/governance/audit" element={<GovernanceAuditLog />} />
+
 
                   <Route
                     path="/integrations"
