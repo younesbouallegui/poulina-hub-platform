@@ -396,12 +396,13 @@ const CreateUserDialog = ({
   roles: ZRoleRow[]; groups: ZGroupRow[];
   onSubmit: (payload: any) => Promise<void>;
 }) => {
-  const [form, setForm] = useState({ username: "", name: "", surname: "", email: "", password: "", roleid: "", usrgrps: [] as string[] });
+  const [form, setForm] = useState({ username: "", name: "", surname: "", email: "", password: "", confirm: "", roleid: "", usrgrps: [] as string[], status: 0 });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setForm({ username: "", name: "", surname: "", email: "", password: "", roleid: roles[0]?.roleid ?? "", usrgrps: [] });
+    if (open) setForm({ username: "", name: "", surname: "", email: "", password: "", confirm: "", roleid: roles[0]?.roleid ?? "", usrgrps: [], status: 0 });
   }, [open, roles]);
+
 
   const toggleGroup = (id: string) =>
     setForm((f) => ({ ...f, usrgrps: f.usrgrps.includes(id) ? f.usrgrps.filter((g) => g !== id) : [...f.usrgrps, id] }));
