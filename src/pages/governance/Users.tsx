@@ -460,8 +460,9 @@ const CreateUserDialog = ({
         <DialogFooter>
           <button onClick={() => onOpenChange(false)} className="rounded-md border border-input px-3 py-1.5 text-xs">Cancel</button>
           <button
-            disabled={saving || !form.username || !form.password || !form.roleid || form.usrgrps.length === 0}
-            onClick={async () => { setSaving(true); try { await onSubmit(form); } finally { setSaving(false); } }}
+            disabled={saving || !form.username || !form.password || form.password !== form.confirm || !form.roleid || form.usrgrps.length === 0}
+            onClick={async () => { setSaving(true); try { const { confirm, ...payload } = form; await onSubmit(payload); } finally { setSaving(false); } }}
+
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Create
