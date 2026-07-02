@@ -192,20 +192,31 @@ const Users = () => {
         />
       </div>
 
-      <div className="mt-4 flex items-center gap-2 border-b border-border px-4 sm:px-6">
-        <p className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Users
-        </p>
-        <div className="ml-auto relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users..."
-            className="h-8 w-64 rounded-md border border-border bg-card pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-border px-4 sm:px-6">
+        <p className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Users</p>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..."
+              className="h-8 w-56 rounded-md border border-border bg-card pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
+            className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+            <option value="all">All roles</option>
+            {roles.map((r) => <option key={r.roleid} value={r.roleid}>{r.name}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+            <option value="all">All statuses</option>
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled</option>
+          </select>
+          <button onClick={exportCsv} className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs text-muted-foreground hover:text-primary hover:border-primary/40">
+            Export CSV
+          </button>
         </div>
       </div>
+
 
       <div className="flex-1 p-4 sm:p-6">
         {loading ? (
