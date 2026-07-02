@@ -186,8 +186,79 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ============================================================
+    // USER GROUP ACTIONS
+    // ============================================================
+    if (action === "group-list") {
+      const groups = await zbx("usergroup.get", {
+        output: "extend",
+        selectUsers: ["userid", "username"],
+        selectHostGroupRights: "extend",
+      }) as any[];
+      // best-effort mirror
+      if (Array.isArray(groups)) {
+        await admin.from("zbx_user_groups").upsert(
+          groups.map((g: any) => ({
+            usrgrpid: g.usrgrpid,
+            name: g.name,
+            gui_access: g.gui_access != null ? Number(g.gui_access) : null,
+            users_status: g.users_status != null ? Number(g.users_status) : null,
+            last_synced_at: new Date().toISOString(),
+          })),
+          { onConflict: "usrgrpid" },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true, groups }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "group-create") {
+      const { name, gui_access = 0, users_status = 0, userids = [] } = body;
+      if (!name) return new Response(JSON.stringify({ error: "name required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const res = await zbx("usergroup.create", {
+        name,
+        gui_access: String(gui_access),
+        users_status: String(users_status),
+        ...(userids.length ? { userids } : {}),
+      }) as { usrgrpids: string[] };
+      await writeAudit("usergroup.create", { username: name }, null, { name, gui_access, users_status, userids }, { usrgrpid: res.usrgrpids?.[0] });
+      return new Response(JSON.stringify({ ok: true, usrgrpid: res.usrgrpids?.[0] }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "group-update") {
+      const { usrgrpid, ...patch } = body;
+      if (!usrgrpid) return new Response(JSON.stringify({ error: "usrgrpid required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const params: any = { usrgrpid };
+      if (patch.name !== undefined) params.name = patch.name;
+      if (patch.gui_access !== undefined) params.gui_access = String(patch.gui_access);
+      if (patch.users_status !== undefined) params.users_status = String(patch.users_status);
+      if (Array.isArray(patch.userids)) params.userids = patch.userids;
+      await zbx("usergroup.update", params);
+      await writeAudit("usergroup.update", { username: patch.name ?? usrgrpid }, null, patch, { usrgrpid });
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "group-delete") {
+      const { usrgrpid } = body;
+      if (!usrgrpid) return new Response(JSON.stringify({ error: "usrgrpid required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      await zbx("usergroup.delete", [usrgrpid]);
+      await admin.from("zbx_user_groups").delete().eq("usrgrpid", usrgrpid);
+      await writeAudit("usergroup.delete", { username: usrgrpid }, { usrgrpid }, null, null);
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "roles-list") {
+      const roles = await zbx("role.get", { output: "extend" });
+      return new Response(JSON.stringify({ ok: true, roles }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "mediatypes-list") {
+      const mediatypes = await zbx("mediatype.get", { output: ["mediatypeid", "name", "type", "status"] });
+      return new Response(JSON.stringify({ ok: true, mediatypes }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action '${action}'` }),
       { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
   } catch (e) {
     console.error("zabbix-users error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),

@@ -41,7 +41,9 @@ import AssetDetail from "./pages/cmdb/AssetDetail";
 import Services from "./pages/cmdb/Services";
 import GovernanceUsers from "./pages/governance/Users";
 import GovernanceDepartments from "./pages/governance/Departments";
+import GovernanceUserGroups from "./pages/governance/UserGroups";
 import GovernanceAuditLog from "./pages/governance/AuditLog";
+
 import IntegrationCenter from "./pages/integrations/IntegrationCenter";
 import Dashboards from "./pages/Dashboards";
 import TerminalPage from "./pages/Terminal";
@@ -130,8 +132,10 @@ const App = () => (
                   <Route path="/aiops/knowledge" element={<AIKnowledgeBase />} />
                   <Route path="/aiops/history" element={<AIAutomationHistory />} />
                   <Route path="/governance/users" element={<GovernanceUsers />} />
+                  <Route path="/governance/groups" element={<GovernanceUserGroups />} />
                   <Route path="/governance/departments" element={<GovernanceDepartments />} />
                   <Route path="/governance/audit" element={<GovernanceAuditLog />} />
+
 
 
                   <Route

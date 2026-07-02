@@ -55,6 +55,12 @@ const Users = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ZUserRow | null>(null);
   const [resetTarget, setResetTarget] = useState<ZUserRow | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ZUserRow | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+
 
   const load = async () => {
     const [u, r, g, m] = await Promise.all([
@@ -106,13 +112,38 @@ const Users = () => {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return users.filter((u) =>
-      !q || u.username.toLowerCase().includes(q) ||
-      (u.name ?? "").toLowerCase().includes(q) ||
-      (u.surname ?? "").toLowerCase().includes(q) ||
-      (u.email ?? "").toLowerCase().includes(q),
-    );
-  }, [users, search]);
+    return users.filter((u) => {
+      if (q && !(u.username.toLowerCase().includes(q) ||
+        (u.name ?? "").toLowerCase().includes(q) ||
+        (u.surname ?? "").toLowerCase().includes(q) ||
+        (u.email ?? "").toLowerCase().includes(q))) return false;
+      if (roleFilter !== "all" && u.roleid !== roleFilter) return false;
+      if (statusFilter !== "all") {
+        const isDisabled = u.status === 1;
+        if (statusFilter === "enabled" && isDisabled) return false;
+        if (statusFilter === "disabled" && !isDisabled) return false;
+      }
+      return true;
+    });
+  }, [users, search, roleFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter]);
+
+  const exportCsv = () => {
+    const header = "username,name,surname,email,role,status";
+    const rows = filtered.map((u) => {
+      const r = roles.find((x) => x.roleid === u.roleid);
+      return [u.username, u.name ?? "", u.surname ?? "", u.email ?? "", r?.name ?? "", u.status === 1 ? "disabled" : "enabled"].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `zabbix-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
 
   const groupNamesFor = (userid: string) =>
     members.filter((m) => m.zabbix_userid === userid)
@@ -161,20 +192,31 @@ const Users = () => {
         />
       </div>
 
-      <div className="mt-4 flex items-center gap-2 border-b border-border px-4 sm:px-6">
-        <p className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Users
-        </p>
-        <div className="ml-auto relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users..."
-            className="h-8 w-64 rounded-md border border-border bg-card pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-b border-border px-4 sm:px-6">
+        <p className="py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Users</p>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..."
+              className="h-8 w-56 rounded-md border border-border bg-card pl-7 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
+            className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+            <option value="all">All roles</option>
+            {roles.map((r) => <option key={r.roleid} value={r.roleid}>{r.name}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="h-8 rounded-md border border-border bg-card px-2 text-xs">
+            <option value="all">All statuses</option>
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled</option>
+          </select>
+          <button onClick={exportCsv} className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs text-muted-foreground hover:text-primary hover:border-primary/40">
+            Export CSV
+          </button>
         </div>
       </div>
+
 
       <div className="flex-1 p-4 sm:p-6">
         {loading ? (
@@ -199,7 +241,7 @@ const Users = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((u) => {
+                {paged.map((u) => {
                   const role = roleFor(u);
                   const userGroups = groupNamesFor(u.zabbix_userid);
                   const isBusy = busyId === u.zabbix_userid;
@@ -267,14 +309,11 @@ const Users = () => {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
-                                onClick={() => {
-                                  if (confirm(`Delete Zabbix user '${u.username}'? This cannot be undone.`)) {
-                                    callUserAction("delete", { userid: u.zabbix_userid }, "User deleted");
-                                  }
-                                }}
+                                onClick={() => setRemoveTarget(u)}
                               >
-                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Remove…
                               </DropdownMenuItem>
+
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
@@ -286,7 +325,18 @@ const Users = () => {
             </table>
           </div>
         )}
+        {filtered.length > pageSize && (
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}</span>
+            <div className="flex items-center gap-2">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded border border-input px-2 py-1 disabled:opacity-40">Prev</button>
+              <span>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded border border-input px-2 py-1 disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        )}
       </div>
+
 
       <CreateUserDialog
         open={createOpen}
@@ -317,8 +367,15 @@ const Users = () => {
           setResetTarget(null);
         }}
       />
+      <RemoveUserDialog
+        target={removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onDisable={async () => { if (!removeTarget) return; await callUserAction("disable", { userid: removeTarget.zabbix_userid }, "User disabled"); setRemoveTarget(null); }}
+        onDelete={async () => { if (!removeTarget) return; await callUserAction("delete", { userid: removeTarget.zabbix_userid }, "User deleted"); setRemoveTarget(null); }}
+      />
     </div>
   );
+
 };
 
 const Kpi = ({ icon: Icon, label, value, accent }: { icon: any; label: string; value: number; accent?: boolean }) => (
@@ -339,12 +396,13 @@ const CreateUserDialog = ({
   roles: ZRoleRow[]; groups: ZGroupRow[];
   onSubmit: (payload: any) => Promise<void>;
 }) => {
-  const [form, setForm] = useState({ username: "", name: "", surname: "", email: "", password: "", roleid: "", usrgrps: [] as string[] });
+  const [form, setForm] = useState({ username: "", name: "", surname: "", email: "", password: "", confirm: "", roleid: "", usrgrps: [] as string[], status: 0 });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setForm({ username: "", name: "", surname: "", email: "", password: "", roleid: roles[0]?.roleid ?? "", usrgrps: [] });
+    if (open) setForm({ username: "", name: "", surname: "", email: "", password: "", confirm: "", roleid: roles[0]?.roleid ?? "", usrgrps: [], status: 0 });
   }, [open, roles]);
+
 
   const toggleGroup = (id: string) =>
     setForm((f) => ({ ...f, usrgrps: f.usrgrps.includes(id) ? f.usrgrps.filter((g) => g !== id) : [...f.usrgrps, id] }));
@@ -363,7 +421,19 @@ const CreateUserDialog = ({
             <Field label="Last name" value={form.surname} onChange={(v) => setForm({ ...form, surname: v })} />
           </div>
           <Field label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-          <Field label="Password" type="password" required value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Password" type="password" required value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+            <Field label="Confirm password" type="password" required value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Status</label>
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: Number(e.target.value) })}
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm">
+              <option value={0}>Enabled</option>
+              <option value={1}>Disabled</option>
+            </select>
+          </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium">Role</label>
             <select
@@ -390,8 +460,9 @@ const CreateUserDialog = ({
         <DialogFooter>
           <button onClick={() => onOpenChange(false)} className="rounded-md border border-input px-3 py-1.5 text-xs">Cancel</button>
           <button
-            disabled={saving || !form.username || !form.password || !form.roleid || form.usrgrps.length === 0}
-            onClick={async () => { setSaving(true); try { await onSubmit(form); } finally { setSaving(false); } }}
+            disabled={saving || !form.username || !form.password || form.password !== form.confirm || !form.roleid || form.usrgrps.length === 0}
+            onClick={async () => { setSaving(true); try { const { confirm, ...payload } = form; await onSubmit(payload); } finally { setSaving(false); } }}
+
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Create
@@ -506,6 +577,41 @@ const ResetPasswordDialog = ({ target, onClose, onSubmit }: {
     </Dialog>
   );
 };
+
+const RemoveUserDialog = ({ target, onClose, onDisable, onDelete }: {
+  target: ZUserRow | null; onClose: () => void; onDisable: () => Promise<void>; onDelete: () => Promise<void>;
+}) => {
+  const [busy, setBusy] = useState<"disable" | "delete" | null>(null);
+  if (!target) return null;
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Remove {target.username}</DialogTitle>
+          <DialogDescription>
+            Choose how to remove this Zabbix user. Disable is reversible; Delete calls <span className="font-mono">user.delete</span> and cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex gap-2 sm:justify-between">
+          <button onClick={onClose} className="rounded-md border border-input px-3 py-1.5 text-xs">Cancel</button>
+          <div className="flex gap-2">
+            <button disabled={!!busy}
+              onClick={async () => { setBusy("disable"); try { await onDisable(); } finally { setBusy(null); } }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning disabled:opacity-60">
+              {busy === "disable" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Disable
+            </button>
+            <button disabled={!!busy}
+              onClick={async () => { if (confirm(`Permanently delete '${target.username}' from Zabbix?`)) { setBusy("delete"); try { await onDelete(); } finally { setBusy(null); } } }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+              {busy === "delete" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Delete
+            </button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 
 const Field = ({ label, value, onChange, type = "text", required }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean;
