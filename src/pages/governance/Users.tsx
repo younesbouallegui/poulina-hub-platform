@@ -421,7 +421,19 @@ const CreateUserDialog = ({
             <Field label="Last name" value={form.surname} onChange={(v) => setForm({ ...form, surname: v })} />
           </div>
           <Field label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-          <Field label="Password" type="password" required value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Password" type="password" required value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+            <Field label="Confirm password" type="password" required value={form.confirm} onChange={(v) => setForm({ ...form, confirm: v })} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Status</label>
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: Number(e.target.value) })}
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm">
+              <option value={0}>Enabled</option>
+              <option value={1}>Disabled</option>
+            </select>
+          </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium">Role</label>
             <select
