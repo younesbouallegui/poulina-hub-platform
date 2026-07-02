@@ -564,6 +564,41 @@ const ResetPasswordDialog = ({ target, onClose, onSubmit }: {
   );
 };
 
+const RemoveUserDialog = ({ target, onClose, onDisable, onDelete }: {
+  target: ZUserRow | null; onClose: () => void; onDisable: () => Promise<void>; onDelete: () => Promise<void>;
+}) => {
+  const [busy, setBusy] = useState<"disable" | "delete" | null>(null);
+  if (!target) return null;
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Remove {target.username}</DialogTitle>
+          <DialogDescription>
+            Choose how to remove this Zabbix user. Disable is reversible; Delete calls <span className="font-mono">user.delete</span> and cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex gap-2 sm:justify-between">
+          <button onClick={onClose} className="rounded-md border border-input px-3 py-1.5 text-xs">Cancel</button>
+          <div className="flex gap-2">
+            <button disabled={!!busy}
+              onClick={async () => { setBusy("disable"); try { await onDisable(); } finally { setBusy(null); } }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning disabled:opacity-60">
+              {busy === "disable" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Disable
+            </button>
+            <button disabled={!!busy}
+              onClick={async () => { if (confirm(`Permanently delete '${target.username}' from Zabbix?`)) { setBusy("delete"); try { await onDelete(); } finally { setBusy(null); } } }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-60">
+              {busy === "delete" && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Delete
+            </button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+
 const Field = ({ label, value, onChange, type = "text", required }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean;
 }) => (
