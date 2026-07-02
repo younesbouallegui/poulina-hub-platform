@@ -325,7 +325,18 @@ const Users = () => {
             </table>
           </div>
         )}
+        {filtered.length > pageSize && (
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}</span>
+            <div className="flex items-center gap-2">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded border border-input px-2 py-1 disabled:opacity-40">Prev</button>
+              <span>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="rounded border border-input px-2 py-1 disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        )}
       </div>
+
 
       <CreateUserDialog
         open={createOpen}
