@@ -112,13 +112,38 @@ const Users = () => {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return users.filter((u) =>
-      !q || u.username.toLowerCase().includes(q) ||
-      (u.name ?? "").toLowerCase().includes(q) ||
-      (u.surname ?? "").toLowerCase().includes(q) ||
-      (u.email ?? "").toLowerCase().includes(q),
-    );
-  }, [users, search]);
+    return users.filter((u) => {
+      if (q && !(u.username.toLowerCase().includes(q) ||
+        (u.name ?? "").toLowerCase().includes(q) ||
+        (u.surname ?? "").toLowerCase().includes(q) ||
+        (u.email ?? "").toLowerCase().includes(q))) return false;
+      if (roleFilter !== "all" && u.roleid !== roleFilter) return false;
+      if (statusFilter !== "all") {
+        const isDisabled = u.status === 1;
+        if (statusFilter === "enabled" && isDisabled) return false;
+        if (statusFilter === "disabled" && !isDisabled) return false;
+      }
+      return true;
+    });
+  }, [users, search, roleFilter, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter]);
+
+  const exportCsv = () => {
+    const header = "username,name,surname,email,role,status";
+    const rows = filtered.map((u) => {
+      const r = roles.find((x) => x.roleid === u.roleid);
+      return [u.username, u.name ?? "", u.surname ?? "", u.email ?? "", r?.name ?? "", u.status === 1 ? "disabled" : "enabled"].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+    });
+    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `zabbix-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
 
   const groupNamesFor = (userid: string) =>
     members.filter((m) => m.zabbix_userid === userid)
