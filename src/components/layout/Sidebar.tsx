@@ -160,6 +160,8 @@ export const Sidebar = ({ mobileOpen, onMobileClose }: SidebarProps) => {
       title: "Governance",
       items: [
         { to: "/governance/users", label: "Users & Roles", icon: UsersIcon, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+        { to: "/governance/groups", label: "User Groups", icon: Shield, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
+
         { to: "/governance/departments", label: "Departments", icon: Building2, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
         { to: "/governance/audit", label: "Audit Logs", icon: ScrollText, allow: ["super_admin", "admin", "operator", "viewer", "auditor"] },
 
